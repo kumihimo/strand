@@ -98,7 +98,7 @@ Clone this repo, then run the installer from the checkout: `installer/install.sh
 
 ### Desktop app packages
 
-Each `v*` tag builds the desktop app as a Windows installer (`Strand-Setup-<version>.exe`), a `.deb` and an AppImage for x64 Linux, with `SHA256SUMS` and its signature `SHA256SUMS.asc`. Until Node, bd and git ship inside the app, it needs Node 24 on PATH.
+Each `v*` tag builds the desktop app as a Windows installer (`Strand-Setup-<version>.exe`), a `.deb` and an AppImage for x64 Linux, with `SHA256SUMS` and its signature `SHA256SUMS.asc`, and attaches them to a draft GitHub Release that is published by hand. Download them from the [Releases page](https://github.com/kumihimo/strand/releases). Until Node, bd and git ship inside the app, it needs Node 24 on PATH.
 
 The Windows installer is not code-signed yet, so Windows SmartScreen shows "Windows protected your PC" when you run it. Check the download against `SHA256SUMS` first (below; on Windows, `Get-FileHash Strand-Setup-<version>.exe` gives the SHA-256), then choose **More info** and **Run anyway**.
 
