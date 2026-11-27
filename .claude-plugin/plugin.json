@@ -1,0 +1,11 @@
+{
+  "name": "strand",
+  "version": "0.1.0",
+  "description": "Bead-driven SDLC: slash commands, session hooks and a stage-aware work skill (Specify, Build, Verify, Close & learn).",
+  "author": {
+    "name": "The Strand Authors"
+  },
+  "homepage": "https://github.com/kumihimo/strand",
+  "repository": "https://github.com/kumihimo/strand",
+  "license": "Apache-2.0"
+}

@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.superpowers/
+*.log
+.env
+.env.*
+.claude/launch.json
+release/
+
+# The private docs repo is cloned here by maintainers; it is not part of this repo.
+docs/

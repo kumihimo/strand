@@ -1,0 +1,79 @@
+{
+  "name": "strand",
+  "version": "0.1.0",
+  "description": "An LLM-assisted SDLC for one engineer: a CLI, a Claude Code plugin and a local cockpit over Beads.",
+  "license": "Apache-2.0",
+  "author": "The Strand Authors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kumihimo/strand.git"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "strand": "src/cli/strand.ts"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "setup": "node installer/setup.ts",
+    "build:ui": "vite build ui --outDir ../dist/ui --emptyOutDir",
+    "cockpit": "node src/cli/strand.ts cockpit",
+    "dev:ui": "vite ui",
+    "app": "electron .",
+    "package": "npm run build:ui && electron-builder --dir"
+  },
+  "dependencies": {
+    "@fastify/static": "^10.1.12",
+    "@fastify/websocket": "^11.3.7",
+    "@napi-rs/keyring": "^2.1.2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "cross-spawn": "^7.0.6",
+    "fastify": "^5.12.8",
+    "node-pty": "1.1.0",
+    "open": "^11.0.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "45.5.0",
+    "electron-builder": "26.18.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "ws": "^8.23.0"
+  },
+  "main": "electron/main.ts",
+  "build": {
+    "appId": "dev.strand.app",
+    "productName": "Strand",
+    "executableName": "strand",
+    "asar": false,
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "package.json",
+      "electron/**/*.ts",
+      "src/**/*.ts",
+      "dist/ui/**/*"
+    ],
+    "linux": {
+      "executableName": "strand",
+      "category": "Development"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    }
+  }
+}

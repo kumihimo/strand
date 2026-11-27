@@ -1,0 +1,14 @@
+{
+  "name": "strand",
+  "description": "Marketplace for the strand plugin (bead-driven SDLC).",
+  "owner": {
+    "name": "The Strand Authors"
+  },
+  "plugins": [
+    {
+      "name": "strand",
+      "source": "./",
+      "description": "Bead-driven SDLC: slash commands, session hooks and a stage-aware work skill."
+    }
+  ]
+}
