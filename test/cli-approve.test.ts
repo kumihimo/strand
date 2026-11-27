@@ -88,7 +88,7 @@ test('strand help lists each command once', async () => {
 
 test('strand new help shows the story and criterion forms as suggestions', async () => {
   const help = await cli(['help']);
-  assert.ok(help.out.includes('As a ..., I want ..., so that ...'), help.out);
+  assert.ok(help.out.includes('As <role>, I want ..., so that ...'), help.out);
   assert.ok(help.out.includes('- [ ] <text> (check: <command>)'), help.out);
   assert.ok(help.out.includes('--context <folder>'), help.out);
 });
@@ -157,7 +157,7 @@ test('strand approve refuses a bead that does not meet the spec rules, listing w
   const bare = await beads.create({ title: 'Bare', type: 'task', parent: epic });
   const r = await cli(['approve', bare.id]);
   assert.equal(r.code, 1);
-  assert.equal(r.err, 'error: description must open "As a ..., I want ..., so that ..."; needs at least one acceptance criterion');
+  assert.equal(r.err, 'error: description must open "As <role>, I want ..., so that ..."; needs at least one acceptance criterion');
   assert.equal(planApprovedAt((await beads.show(bare.id)).notes), undefined);
   const loose = await beads.create({ title: 'Loose', type: 'task', parent: epic, description: STORY, acceptance: 'it works\n- [ ] it is fast' });
   const l = await cli(['approve', loose.id]);

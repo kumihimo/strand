@@ -41,7 +41,7 @@ Use the format named in the context (`spec format:`):
 
 ## 5. Save to the bead
 
-- Story: `bd -C "<tracker dir>" update <id> -d "<text>"` if the description does not open with `As a ..., I want ..., so that ...` yet.
+- Story: `bd -C "<tracker dir>" update <id> -d "<text>"` if the description does not open with `As <role>, I want ..., so that ...` yet.
 - Criteria: `bd -C "<tracker dir>" update <id> --acceptance "<full list>"`. This replaces the whole list, so send every line.
 - Spec body: write it to a temp file, then `bd -C "<tracker dir>" update <id> --design-file <file>`.
 - Check with `bd -C "<tracker dir>" show <id>`. Add a checkpoint comment.

@@ -160,7 +160,7 @@ test('the form starts empty, with the story and criterion forms as placeholders'
   assert.equal(emptyForm().description, '');
   assert.deepEqual(emptyForm().repos, []);
   assert.equal(ACCEPTANCE_PLACEHOLDER, '- [ ] <text> (check: <command>)');
-  assert.equal(DESCRIPTION_PLACEHOLDER, 'As a ..., I want ..., so that ...');
+  assert.equal(DESCRIPTION_PLACEHOLDER, 'As <role>, I want ..., so that ...');
   assert.equal(emptyForm().priority, 2);
 });
 

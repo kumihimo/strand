@@ -154,7 +154,7 @@ export function contextOf(labels: string[]): string[] {
 }
 
 /** The suggested story line and criterion form, shown as placeholders and in help text. */
-export const STORY_FORM = 'As a ..., I want ..., so that ...';
+export const STORY_FORM = 'As <role>, I want ..., so that ...';
 export const CRITERION_FORM = '- [ ] <text> (check: <command>)';
 
 /** What creating a bead needs: a title of at most 60 characters, and a parent epic for every non-epic. */
@@ -171,7 +171,7 @@ export function captureProblems(i: { title: string; type: string; parent?: strin
  */
 export function specProblems(i: { type: string; description?: string; acceptance?: string }): string[] {
   const out: string[] = [];
-  if (i.type !== 'chore' && i.type !== 'epic' && !/^\s*As an? .+, I want .+, so that .+/s.test(i.description ?? '')) {
+  if (i.type !== 'chore' && i.type !== 'epic' && !/^\s*As .+?, I want .+, so that .+/s.test(i.description ?? '')) {
     out.push(`description must open "${STORY_FORM}"`);
   }
   const lines = (i.acceptance ?? '').split(/\r?\n/).filter((l) => l.trim() !== '');

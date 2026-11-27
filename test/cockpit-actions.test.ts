@@ -177,7 +177,7 @@ test('approve errors: closed, already approved, spec problems, refuse-mode WIP a
     ['approved', [row('t-1', { notes: 'plan-approved 2026-11-01T10:00:00.000Z' })], 'bead t-1 is already approved'],
     ['no criteria', [row('t-1', { acceptance_criteria: '' })], 'needs at least one acceptance criterion'],
     ['free text', [row('t-1', { acceptance_criteria: 'it works\n- [ ] it is fast' })], '2 acceptance lines are not in the form "- [ ] <text> (check: <command>)"'],
-    ['no story', [row('t-1', { description: 'fix' })], 'description must open "As a ..., I want ..., so that ..."'],
+    ['no story', [row('t-1', { description: 'fix' })], 'description must open "As <role>, I want ..., so that ..."'],
   ];
   for (const [name, rows, error] of cases) {
     const { beads, notes } = recorder(rows);

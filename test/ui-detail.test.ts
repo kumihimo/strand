@@ -56,7 +56,7 @@ const crit = (o: Partial<Criterion>): Criterion => ({ text: 't', ticked: false, 
 
 test('approveState: shown only in specify, disabled with every reason when the spec rules are not met', () => {
   assert.deepEqual(approveState({ stage: 'specify', specProblems: [] }), { show: true, disabled: false, reasons: [] });
-  const problems = ['description must open "As a ..., I want ..., so that ..."', '2 acceptance lines are not in the form "- [ ] <text> (check: <command>)"'];
+  const problems = ['description must open "As <role>, I want ..., so that ..."', '2 acceptance lines are not in the form "- [ ] <text> (check: <command>)"'];
   assert.deepEqual(approveState({ stage: 'specify', specProblems: problems }), { show: true, disabled: true, reasons: problems });
   for (const stage of ['backlog', 'build', 'verify', 'review', 'done'] as const) {
     assert.equal(approveState({ stage, specProblems: [] }).show, false, stage);
@@ -205,7 +205,7 @@ test('draftProblems after approval maps the spec rules to fields and flags stray
   const d = detail({ acceptance: '- [ ] a (check: b)', planApprovedAt: APPROVED_AT });
   assert.deepEqual(draftProblems(d, editDraft(d)), {});
   assert.match(draftProblems(d, { ...editDraft(d), title: 'x'.repeat(61) }).title ?? '', /60/);
-  assert.match(draftProblems(d, { ...editDraft(d), description: 'plans' }).description ?? '', /As a/);
+  assert.match(draftProblems(d, { ...editDraft(d), description: 'plans' }).description ?? '', /As <role>/);
   assert.match(draftProblems(d, { ...editDraft(d), acceptance: '- [ ] no check' }).acceptance ?? '', /check/);
   assert.match(draftProblems(d, { ...editDraft(d), acceptance: '- [] bad (check: x)' }).acceptance ?? '', /must start/);
   assert.match(draftProblems(d, { ...editDraft(d), acceptance: '' }).acceptance ?? '', /at least one/);
@@ -251,7 +251,7 @@ test('draftProblems on an approved bead ticked in the skill format: other edits 
   assert.deepEqual(draftProblems(d, { ...editDraft(d), title: 'Renamed', design: 'More' }), {});
   assert.deepEqual(draftProblems(d, { ...editDraft(d), description: 'As a dev, I want z, so that y' }), {});
   // A bad story is still caught when the description is edited.
-  assert.match(draftProblems(d, { ...editDraft(d), description: 'plans' }).description ?? '', /As a/);
+  assert.match(draftProblems(d, { ...editDraft(d), description: 'plans' }).description ?? '', /As <role>/);
   // An older spec that breaks a rule does not hold back a priority edit.
   const old = detail({ acceptance: '- [ ] a (check: b)', planApprovedAt: APPROVED_AT, description: 'no story' });
   assert.deepEqual(draftProblems(old, { ...editDraft(old), priority: 0 }), {});

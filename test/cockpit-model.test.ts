@@ -248,7 +248,7 @@ test('detail: relations, criteria, approval, comments, command', { skip }, async
   const e8 = await m.detail(ids.E8);
   assert.deepEqual(e8.specProblems, ['1 acceptance line is not in the form "- [ ] <text> (check: <command>)"']);
   assert.deepEqual(e8.context, ['docs', 'lib']);
-  assert.deepEqual((await m.detail(ids.E2)).specProblems, ['description must open "As a ..., I want ..., so that ..."']);
+  assert.deepEqual((await m.detail(ids.E2)).specProblems, ['description must open "As <role>, I want ..., so that ..."']);
 
   const x = await m.detail(ids.X);
   assert.deepEqual(x.relations.related, [ids.E1]);
