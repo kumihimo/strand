@@ -110,7 +110,11 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 sha256sum -c --ignore-missing SHA256SUMS
 ```
 
-`gpg --verify` must report a good signature from the release key, `Strand release signing`, fingerprint: _added with the first release key_.
+`gpg --verify` must report a good signature from the release key, `Strand release signing`, with this fingerprint:
+
+```
+9B0B 04DF 2033 A161 CFAA  EA62 9CAF 8A0C E880 3C2C
+```
 
 ### Moving an existing tracker onto this workflow
 
