@@ -36,7 +36,7 @@ What it does:
 ### Creating a bead
 
 - Capture first. A bead needs a title (at most 60 characters), a type and, unless it is an epic, a parent epic. That is the rule for the New bead form and for `strand new`.
-- The description and acceptance criteria are optional free text. The forms `As a ..., I want ..., so that ...` and `- [ ] <text> (check: <command>)` show as suggestions.
+- The description and acceptance criteria are optional free text. The forms `As <role>, I want ..., so that ...` and `- [ ] <text> (check: <command>)` show as suggestions.
 - The spec rules are checked at approval (**Approve spec**, `strand approve`, `/strand:approve`): the story line (not for a chore or an epic), at least one criterion (not for a chore), and every acceptance line in the criterion form with a check. A refusal lists what is missing. Approval by plan or by a claim does not check them.
 - **Repos.** Tick the repos the bead needs. The first ticked is the **primary repo**: the session's folder, where the branch and the PR live. The others are **context folders**, passed to Claude with `--add-dir` when the session starts. **Make primary** changes the primary; **Refresh** reads the workspace folders again. A bead with no repo cannot start a session until one is set. On the CLI: `--repo <folder>` and `--context <folder>` (repeatable).
 - Open artefacts and links in your default app, from an allowlist.

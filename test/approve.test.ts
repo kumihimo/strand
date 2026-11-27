@@ -92,7 +92,7 @@ test('cli and cockpit check the spec rules and list every problem', async () => 
     await assert.rejects(approveSpec(x.c, 't-free', { by: 'cockpit' }), (e: Error) => e.message === `2 acceptance lines are ${form}`);
     await assert.rejects(
       approveSpec(x.c, 't-bare', { by: 'cli' }),
-      (e: Error) => e.message === 'description must open "As a ..., I want ..., so that ..."; needs at least one acceptance criterion',
+      (e: Error) => e.message === 'description must open "As <role>, I want ..., so that ..."; needs at least one acceptance criterion',
     );
     assert.equal(f.notes.length, 0);
     await approveSpec(x.c, 't-good', { by: 'cockpit', now: NOW });

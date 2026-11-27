@@ -29,7 +29,7 @@ const USAGE = `usage: strand <command> [options]
   new "<title>" --type <t> [--priority n] [--repo <name>] [--context <folder>]... [--parent <id>]
       [--description <text>] [--acceptance <text>] [--description-file <path>] [--acceptance-file <path>] [--json]
       A title, a type and a parent epic are enough. Description and criteria are optional free text,
-      checked at approval. Suggested forms: "As a ..., I want ..., so that ..."
+      checked at approval. Suggested forms: "As <role>, I want ..., so that ..."
       and one line per criterion: "- [ ] <text> (check: <command>)".
   work <bead-id> [--specify] [--resume <session-id> | --session-id <session-id>] [--format <spec-format>] [--json]
   approve <bead-id>

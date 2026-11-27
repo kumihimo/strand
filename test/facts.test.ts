@@ -104,9 +104,10 @@ test('captureProblems: a title and a parent are all a bead needs', () => {
 
 test('specProblems accepts a good task, and ticked criteria', () => {
   assert.deepEqual(specProblems(good), []);
-  // "As an engineer" is the same form as "As a buyer".
-  assert.deepEqual(specProblems({ ...good, description: 'As an engineer, I want x, so that y.' }), []);
-  assert.equal(specProblems({ ...good, description: 'As any engineer, I want x, so that y.' }).length, 1);
+  // Any role after "As" is the same form as "As a buyer".
+  for (const role of ['an engineer', 'the engineer', 'Ada', 'any engineer']) {
+    assert.deepEqual(specProblems({ ...good, description: `As ${role}, I want x, so that y.` }), [], role);
+  }
   assert.deepEqual(specProblems({ ...good, acceptance: '- [x] It works (check: t) (verified: ok)\n\n- [ ] B (check: u)' }), []);
 });
 
@@ -118,7 +119,11 @@ test('specProblems accepts the skill tick format, where the evidence replaces th
 });
 
 test('specProblems: the story line, except for a chore or an epic', () => {
-  assert.deepEqual(specProblems({ ...good, description: 'do the thing' }), ['description must open "As a ..., I want ..., so that ..."']);
+  assert.deepEqual(specProblems({ ...good, description: 'do the thing' }), ['description must open "As <role>, I want ..., so that ..."']);
+  // The three parts, in order, after "As " with a space.
+  for (const d of ['As a dev, I want x', 'As a dev so that y, I want x', 'Asking for x, I want y, so that z', 'as a dev, I want x, so that y']) {
+    assert.equal(specProblems({ ...good, description: d }).length, 1, d);
+  }
   assert.equal(specProblems({ ...good, description: undefined }).length, 1);
   assert.deepEqual(specProblems({ type: 'epic', acceptance: good.acceptance }), []);
 });

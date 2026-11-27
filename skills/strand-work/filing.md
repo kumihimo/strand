@@ -14,9 +14,9 @@ Capture first, spec at approval. A bead needs only a title, a type and a parent 
 
 ## At approval
 
-- **Description.** Opens with the user story, then whatever a reader with none of this session's context needs: what was tried, what was ruled out, why. Needed for every type except `chore` and `epic`.
+- **Description.** Opens with the user story, then whatever a reader with none of this session's context needs: what was tried, what was ruled out, why. Any role follows "As": "As a buyer", "As the engineer" or a name. Needed for every type except `chore` and `epic`.
   ```
-  As a <role>, I want <capability>, so that <benefit>.
+  As <role>, I want <capability>, so that <benefit>.
 
   <supporting context>
   ```
