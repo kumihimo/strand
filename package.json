@@ -24,7 +24,10 @@
     "cockpit": "node src/cli/strand.ts cockpit",
     "dev:ui": "vite ui",
     "app": "electron .",
-    "package": "npm run build:ui && electron-builder --dir"
+    "package": "npm run build:ui && electron-builder --dir",
+    "dist:win:unpacked": "electron-builder --win --x64 --dir --publish never",
+    "dist:win:installer": "electron-builder --win nsis --x64 --prepackaged release/win-unpacked --publish never",
+    "dist:linux": "electron-builder --linux deb AppImage --x64 --publish never"
   },
   "dependencies": {
     "@fastify/static": "^10.1.12",
@@ -59,6 +62,7 @@
     "executableName": "strand",
     "asar": false,
     "npmRebuild": false,
+    "publish": null,
     "directories": {
       "output": "release"
     },
@@ -68,9 +72,43 @@
       "src/**/*.ts",
       "dist/ui/**/*"
     ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
     "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "executableName": "strand",
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "The Strand Authors <authors@strand.invalid>"
+    },
+    "appImage": {
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "mac": {
       "category": "public.app-category.developer-tools"
