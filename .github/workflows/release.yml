@@ -1,9 +1,10 @@
 name: Release
 
 # Builds the Windows installer, the .deb and the AppImage, then SHA256SUMS and its GPG signature, as one
-# workflow artifact. Publishes nothing. The Windows installer is not Authenticode-signed yet; SHA256SUMS,
-# signed with the release key, covers it. The signing job uses the `release` environment, which only v* tags
-# may use, so it never runs for a pull request or a fork. Actions are pinned to full commit SHAs.
+# workflow artifact, and attaches them to a draft GitHub Release on the tag, published by hand. The Windows
+# installer is not Authenticode-signed yet; SHA256SUMS, signed with the release key, covers it. The signing and
+# publishing jobs use the `release` environment, which only v* tags may use, so they never run for a pull request
+# or a fork. Actions are pinned to full commit SHAs.
 
 on:
   push:
@@ -144,3 +145,35 @@ jobs:
             out/Strand-${{ env.VERSION }}.AppImage
             out/SHA256SUMS
             out/SHA256SUMS.asc
+
+  publish:
+    # Attaches the checked files to a draft GitHub Release on the tag; the engineer publishes it after the hand
+    # checks. A re-run replaces the assets of a draft, but never touches a published release.
+    needs: [guard, checksums]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.guard.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: strand-${{ needs.guard.outputs.version }}
+          path: out
+      - name: Create or update the draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          files=(out/Strand-Setup-"$VERSION".exe out/strand_"$VERSION"_amd64.deb out/Strand-"$VERSION".AppImage
+            out/SHA256SUMS out/SHA256SUMS.asc)
+          if draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
+            [ "$draft" = true ] || { echo "::error::release $tag is already published; not replacing its assets"; exit 1; }
+            gh release upload "$tag" "${files[@]}" --clobber
+          else
+            gh release create "$tag" "${files[@]}" --draft --verify-tag --title "Strand $VERSION" \
+              --notes "Verify the downloads before installing: see \"Desktop app packages\" in the README."
+          fi
