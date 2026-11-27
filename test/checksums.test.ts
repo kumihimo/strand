@@ -36,12 +36,13 @@ test('sha256sums rejects no files, a missing file, a directory, a duplicate name
     mkdirSync(join(s.dir, 'y'));
     writeFileSync(join(s.dir, 'x', 'same'), '1');
     writeFileSync(join(s.dir, 'y', 'same'), '2');
-    writeFileSync(join(s.dir, 'back\\slash'), '3');
     assert.throws(() => sha256sums([]), /no files/);
     assert.throws(() => sha256sums([join(s.dir, 'nope')]), /not a file/);
     assert.throws(() => sha256sums([join(s.dir, 'x')]), /not a file/);
     assert.throws(() => sha256sums([join(s.dir, 'x', 'same'), join(s.dir, 'y', 'same')]), /twice/);
     if (process.platform !== 'win32') {
+      // On Windows a backslash separates folders, so no file name can hold one.
+      writeFileSync(join(s.dir, 'back\\slash'), '3');
       assert.throws(() => sha256sums([join(s.dir, 'back\\slash')]), /cannot be listed/);
     }
   } finally {
