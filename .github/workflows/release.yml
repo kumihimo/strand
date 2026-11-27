@@ -1,8 +1,9 @@
 name: Release
 
-# Builds the signed Windows installer, the .deb and the AppImage, then SHA256SUMS and its GPG signature, as
-# one workflow artifact. Publishes nothing. Signing jobs use the `release` environment, which only v* tags may
-# use, so they never run for a pull request or a fork. Actions are pinned to full commit SHAs.
+# Builds the Windows installer, the .deb and the AppImage, then SHA256SUMS and its GPG signature, as one
+# workflow artifact. Publishes nothing. The Windows installer is not Authenticode-signed yet; SHA256SUMS,
+# signed with the release key, covers it. The signing job uses the `release` environment, which only v* tags
+# may use, so it never runs for a pull request or a fork. Actions are pinned to full commit SHAs.
 
 on:
   push:
@@ -57,10 +58,6 @@ jobs:
   windows:
     needs: guard
     runs-on: windows-latest
-    environment: release
-    permissions:
-      contents: read
-      actions: read # SignPath downloads the unsigned artifacts with the job's token
     env:
       VERSION: ${{ needs.guard.outputs.version }}
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -73,77 +70,31 @@ jobs:
       - run: npm ci
       - run: npm run build:ui
 
-      # Pass 1: sign strand.exe and our own PE files in the unpacked tree. SignPath cannot open an NSIS
-      # installer to sign the exe inside it, so the installer is built over the signed tree afterwards.
+      # Two steps, the unpacked tree and then the installer over it with --prepackaged, so that signing the
+      # app's exe can slot in between later: a signing service cannot sign the exe inside an NSIS installer.
       - run: npm run dist:win:unpacked
-      - id: unpacked
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: win-unpacked-unsigned
-          path: release/win-unpacked/
-          if-no-files-found: error
-      - name: Remove the unsigned tree
-        shell: pwsh
-        run: Remove-Item -Recurse -Force release/win-unpacked
-      - uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: strand
-          signing-policy-slug: release-signing
-          artifact-configuration-slug: unpacked
-          github-artifact-id: ${{ steps.unpacked.outputs.artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 3600 # the release request waits for a manual approval
-          output-artifact-directory: release/win-unpacked
-
-      # Pass 2: the installer over the signed tree, then sign the installer itself.
       - run: npm run dist:win:installer
-      - id: installer
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: windows-installer-unsigned
-          path: release/Strand-Setup-${{ env.VERSION }}.exe
-          if-no-files-found: error
-      - uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
-        with:
-          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
-          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
-          project-slug: strand
-          signing-policy-slug: release-signing
-          artifact-configuration-slug: installer
-          github-artifact-id: ${{ steps.installer.outputs.artifact-id }}
-          wait-for-completion: true
-          wait-for-completion-timeout-in-seconds: 3600
-          output-artifact-directory: signed
 
-      - name: Check the signatures, scan with Defender, install and check the installed exe
+      - name: Scan with Defender, install silently and check the installed app
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $installer = "signed/Strand-Setup-$env:VERSION.exe"
-          function Assert-Signed($path) {
-            $sig = Get-AuthenticodeSignature -FilePath $path
-            Write-Host "$path : $($sig.Status) : $($sig.SignerCertificate.Subject)"
-            if ($sig.Status -ne 'Valid') { throw "$path signature is $($sig.Status)" }
-            if ($sig.SignerCertificate.Subject -notmatch 'SignPath Foundation') { throw "$path is not signed by SignPath Foundation" }
-          }
-          Assert-Signed $installer
-          Assert-Signed 'release/win-unpacked/strand.exe'
+          $ErrorActionPreference = "Stop"
+          $installer = (Resolve-Path "release/Strand-Setup-$env:VERSION.exe").Path
 
-          $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+          $mp = Join-Path $env:ProgramFiles "Windows Defender\MpCmdRun.exe"
           & $mp -SignatureUpdate
           if ($LASTEXITCODE -ne 0) { Write-Warning "Defender signature update exited $LASTEXITCODE; scanning with the current signatures" }
-          & $mp -Scan -ScanType 3 -File (Resolve-Path $installer).Path -DisableRemediation
+          & $mp -Scan -ScanType 3 -File $installer -DisableRemediation
           if ($LASTEXITCODE -ne 0) { throw "Defender scan exited $LASTEXITCODE" }
 
-          $p = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
+          $p = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
-          Assert-Signed (Join-Path $env:LOCALAPPDATA 'Programs\Strand\strand.exe')
+          $exe = Join-Path $env:LOCALAPPDATA "Programs\Strand\strand.exe"
+          if (-not (Test-Path $exe)) { throw "$exe was not installed" }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-installer
-          path: signed/Strand-Setup-${{ env.VERSION }}.exe
+          path: release/Strand-Setup-${{ env.VERSION }}.exe
           if-no-files-found: error
 
   checksums:
