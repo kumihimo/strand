@@ -1,0 +1,195 @@
+name: Release
+
+# Builds the signed Windows installer, the .deb and the AppImage, then SHA256SUMS and its GPG signature, as
+# one workflow artifact. Publishes nothing. Signing jobs use the `release` environment, which only v* tags may
+# use, so they never run for a pull request or a fork. Actions are pinned to full commit SHAs.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    # A tag must name the version in package.json and point at a commit on main.
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p 'require("./package.json").version')
+          if [ "$GITHUB_REF_TYPE" != tag ] || [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::run on the tag v$version (got $GITHUB_REF_TYPE $GITHUB_REF_NAME)"; exit 1
+          fi
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "::error::v$version is not on main"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: guard
+    # The oldest supported runner, so the packages work on older glibc.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:ui
+      - run: npm run dist:linux
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-packages
+          if-no-files-found: error
+          path: |
+            release/strand_${{ needs.guard.outputs.version }}_amd64.deb
+            release/Strand-${{ needs.guard.outputs.version }}.AppImage
+
+  windows:
+    needs: guard
+    runs-on: windows-latest
+    environment: release
+    permissions:
+      contents: read
+      actions: read # SignPath downloads the unsigned artifacts with the job's token
+    env:
+      VERSION: ${{ needs.guard.outputs.version }}
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build:ui
+
+      # Pass 1: sign strand.exe and our own PE files in the unpacked tree. SignPath cannot open an NSIS
+      # installer to sign the exe inside it, so the installer is built over the signed tree afterwards.
+      - run: npm run dist:win:unpacked
+      - id: unpacked
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: win-unpacked-unsigned
+          path: release/win-unpacked/
+          if-no-files-found: error
+      - name: Remove the unsigned tree
+        shell: pwsh
+        run: Remove-Item -Recurse -Force release/win-unpacked
+      - uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: strand
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: unpacked
+          github-artifact-id: ${{ steps.unpacked.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600 # the release request waits for a manual approval
+          output-artifact-directory: release/win-unpacked
+
+      # Pass 2: the installer over the signed tree, then sign the installer itself.
+      - run: npm run dist:win:installer
+      - id: installer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-installer-unsigned
+          path: release/Strand-Setup-${{ env.VERSION }}.exe
+          if-no-files-found: error
+      - uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: strand
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.installer.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+
+      - name: Check the signatures, scan with Defender, install and check the installed exe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = "signed/Strand-Setup-$env:VERSION.exe"
+          function Assert-Signed($path) {
+            $sig = Get-AuthenticodeSignature -FilePath $path
+            Write-Host "$path : $($sig.Status) : $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') { throw "$path signature is $($sig.Status)" }
+            if ($sig.SignerCertificate.Subject -notmatch 'SignPath Foundation') { throw "$path is not signed by SignPath Foundation" }
+          }
+          Assert-Signed $installer
+          Assert-Signed 'release/win-unpacked/strand.exe'
+
+          $mp = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
+          & $mp -SignatureUpdate
+          if ($LASTEXITCODE -ne 0) { Write-Warning "Defender signature update exited $LASTEXITCODE; scanning with the current signatures" }
+          & $mp -Scan -ScanType 3 -File (Resolve-Path $installer).Path -DisableRemediation
+          if ($LASTEXITCODE -ne 0) { throw "Defender scan exited $LASTEXITCODE" }
+
+          $p = Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
+          Assert-Signed (Join-Path $env:LOCALAPPDATA 'Programs\Strand\strand.exe')
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-installer
+          path: signed/Strand-Setup-${{ env.VERSION }}.exe
+          if-no-files-found: error
+
+  checksums:
+    needs: [guard, linux, windows]
+    runs-on: ubuntu-latest
+    environment: release
+    env:
+      VERSION: ${{ needs.guard.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-packages
+          path: out
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: windows-installer
+          path: out
+      - name: Write SHA256SUMS
+        run: >-
+          node scripts/checksums.ts --out out/SHA256SUMS
+          "out/Strand-Setup-$VERSION.exe" "out/strand_${VERSION}_amd64.deb" "out/Strand-$VERSION.AppImage"
+      - name: Sign SHA256SUMS, then verify against the committed release key only
+        env:
+          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+          RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          sign=$(mktemp -d); verify=$(mktemp -d)
+          trap 'rm -rf "$sign" "$verify"' EXIT
+          printf '%s\n' "$RELEASE_GPG_PRIVATE_KEY" | gpg --homedir "$sign" --batch --import
+          printf '%s' "$RELEASE_GPG_PASSPHRASE" | gpg --homedir "$sign" --batch --pinentry-mode loopback \
+            --passphrase-fd 0 --detach-sign --armor --output out/SHA256SUMS.asc out/SHA256SUMS
+          gpg --homedir "$verify" --batch --import RELEASE-KEY.asc
+          gpg --homedir "$verify" --batch --verify out/SHA256SUMS.asc out/SHA256SUMS
+          (cd out && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: strand-${{ env.VERSION }}
+          if-no-files-found: error
+          path: |
+            out/Strand-Setup-${{ env.VERSION }}.exe
+            out/strand_${{ env.VERSION }}_amd64.deb
+            out/Strand-${{ env.VERSION }}.AppImage
+            out/SHA256SUMS
+            out/SHA256SUMS.asc

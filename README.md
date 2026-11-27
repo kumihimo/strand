@@ -96,6 +96,22 @@ Clone this repo, then run the installer from the checkout: `installer/install.sh
 - backs up Claude Code's `settings.json` to `settings.json.pre-strand` and removes the hook entries of the old `bead-workflow.sh`;
 - lists the workspace repos whose `CLAUDE.md` has no `Test command`.
 
+### Desktop app packages
+
+Each `v*` tag builds the desktop app as a signed Windows installer (`Strand-Setup-<version>.exe`, signed through SignPath Foundation), a `.deb` and an AppImage for x64 Linux, with `SHA256SUMS` and its signature `SHA256SUMS.asc`. Until Node, bd and git ship inside the app, it needs Node 24 on PATH.
+
+On Ubuntu 23.10 and later, use the `.deb`: it installs an AppArmor profile so Electron's sandbox works under the default `kernel.apparmor_restrict_unprivileged_userns=1`. The AppImage cannot set that up, so there it stops at start-up.
+
+Verify a download before installing it:
+
+```sh
+gpg --import RELEASE-KEY.asc
+gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum -c --ignore-missing SHA256SUMS
+```
+
+`gpg --verify` must report a good signature from the release key, `Strand release signing`, fingerprint: _added with the first release key_.
+
 ### Moving an existing tracker onto this workflow
 
 Run once, in this order, against the real tracker: installer dry run with `--tracker-dir`, the installer, `strand migrate`, `strand migrate --apply`, a new Claude Code session, `strand audit`. Do not start a Claude Code session between the installer and `strand migrate --apply`.
