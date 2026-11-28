@@ -10,6 +10,14 @@ const byPriority = (a: { priority: number; id: string }, b: { priority: number; 
 
 /* ---------- brief ---------- */
 
+/** The header's view tabs. Settings (with Setup as its Tools section) is in the menu bar's File menu. */
+export const HEADER_TABS = [
+  ['brief', 'Brief'],
+  ['board', 'Board'],
+  ['epics', 'Epics'],
+  ['review', 'Review queue'],
+] as const;
+
 export type WaitingItem = { id: string; title: string; priority?: number };
 export type Waiting = { approve: WaitingItem[]; review: WaitingItem[]; total: number };
 

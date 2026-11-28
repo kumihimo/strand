@@ -32,6 +32,7 @@ import {
   waitingOnYou,
   wipBanners,
   wipBars,
+  HEADER_TABS,
 } from '../ui/src/lib/views.ts';
 
 const card = (o: Partial<BeadCard>): BeadCard => ({
@@ -351,4 +352,13 @@ test('hasBeadDrag accepts only a drag that carries the cockpit type', () => {
   assert.equal(hasBeadDrag(['text/plain']), false);
   assert.equal(hasBeadDrag(['Files']), false);
   assert.equal(hasBeadDrag([]), false);
+});
+
+test('AT-7 the header has the four views and no Settings or Setup tab (Settings is in File, Setup inside it)', () => {
+  assert.deepEqual(HEADER_TABS, [
+    ['brief', 'Brief'],
+    ['board', 'Board'],
+    ['epics', 'Epics'],
+    ['review', 'Review queue'],
+  ]);
 });

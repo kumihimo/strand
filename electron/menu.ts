@@ -1,9 +1,8 @@
-// The desktop app's menu bar, as plain data (no Electron import), so it can be unit-tested like handoff.ts.
-// Items carry a command name from a fixed list instead of a click handler; main.ts maps each name to its action.
+// The desktop app's menus and commands, as plain data (no Electron import), so they can be unit-tested like
+// handoff.ts. On macOS the native menu bar is the OS's (menuTemplate). On Windows and Linux the window has no
+// title bar and the page draws the menu bar (ui/src/lib/menubar.ts, ADR 0030); main has no native menu there.
 
-export type Platform = 'darwin' | 'win32' | 'linux';
-
-/** Every command a menu item can carry. Nothing else reaches main's dispatcher. */
+/** Every command a native menu item or the page can name. Nothing else reaches main's dispatcher. */
 export const COMMANDS = [
   'new-bead',
   'settings',
@@ -11,12 +10,18 @@ export const COMMANDS = [
   'go:board',
   'go:epics',
   'go:review',
-  'go:setup',
   'sessions',
   'back',
   'forward',
   'reload',
-  'minimize',
+  'zoom-in',
+  'zoom-out',
+  'zoom-reset',
+  'fullscreen',
+  'devtools',
+  'about',
+  'close',
+  'quit',
   'restart-to-update',
   'open:repo',
   'open:issues',
@@ -24,12 +29,29 @@ export const COMMANDS = [
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
-/** The commands main passes to the page through the receive-only preload (ADR 0030); preload.cjs repeats this list. */
-export const PAGE_COMMANDS = ['new-bead', 'settings', 'go:brief', 'go:board', 'go:epics', 'go:review', 'go:setup', 'sessions'] as const;
+/** Commands main passes to the page (the macOS menu's page items). */
+export const PAGE_COMMANDS = ['new-bead', 'settings', 'go:brief', 'go:board', 'go:epics', 'go:review', 'sessions'] as const;
 export type PageCommand = (typeof PAGE_COMMANDS)[number];
+
+/**
+ * Everything main sends the page through the preload: the page commands, and two states the page's menu bar
+ * shows (`update-ready`: Restart to Update; `dev-build`: Toggle Developer Tools). preload.cjs repeats this list.
+ */
+export const PAGE_MESSAGES = [...PAGE_COMMANDS, 'update-ready', 'dev-build'] as const;
+export type PageMessage = (typeof PAGE_MESSAGES)[number];
+
+/** The only commands the page may ask main to run (the page's menu bar and keys). preload.cjs repeats this list. */
+export const MAIN_COMMANDS = ['zoom-in', 'zoom-out', 'zoom-reset', 'fullscreen', 'devtools', 'about', 'close', 'quit', 'restart-to-update', 'licences'] as const;
+export type MainCommand = (typeof MAIN_COMMANDS)[number];
 
 export function isPageCommand(c: unknown): c is PageCommand {
   return typeof c === 'string' && (PAGE_COMMANDS as readonly string[]).includes(c);
+}
+
+/** A command from the page: exactly a name on MAIN_COMMANDS, and never the developer tools in a packaged app. */
+export function mainCommandAllowed(c: unknown, o: { packaged: boolean }): c is MainCommand {
+  if (typeof c !== 'string' || !(MAIN_COMMANDS as readonly string[]).includes(c)) return false;
+  return !(c === 'devtools' && o.packaged);
 }
 
 /** A menu item: Electron's MenuItemConstructorOptions minus click, plus a command. */
@@ -38,7 +60,6 @@ export type Item = {
   role?: string;
   type?: 'separator';
   accelerator?: string;
-  registerAccelerator?: false;
   command?: Command;
   submenu?: Item[];
 };
@@ -52,122 +73,71 @@ export function linkFor(c: Command): string | undefined {
   return undefined;
 }
 
-/**
- * On Windows and Linux a Ctrl+letter key (no Shift, no Alt) is a terminal control key: Ctrl+R history search,
- * Ctrl+W delete word, Ctrl+C interrupt. The menu shows such a shortcut but does not take the key; the page acts
- * on it when focus is outside a terminal. On macOS Cmd never reaches the terminal, so every key registers.
- */
-export function displayOnly(accelerator: string, platform: Platform): boolean {
-  return platform !== 'darwin' && /^(Ctrl|CmdOrCtrl|CommandOrControl|Control)\+[A-Z]$/i.test(accelerator);
-}
-
 const SEP: Item = { type: 'separator' };
 
-/** The whole menu bar for one platform. `updateReady`: a downloaded update has been verified. */
-export function menuTemplate(o: { platform: Platform; packaged: boolean; updateReady: boolean }): Item[] {
-  const mac = o.platform === 'darwin';
-  const mod = mac ? 'Cmd' : 'Ctrl';
-  // Mnemonics (Alt+F opens File) on Windows and Linux only.
-  const name = (label: string) => (mac ? label : `&${label}`);
+/** The macOS menu bar. `updateReady`: a downloaded update has been verified. */
+export function menuTemplate(o: { packaged: boolean; updateReady: boolean }): Item[] {
   const restart: Item[] = o.updateReady ? [{ label: 'Restart to Update', command: 'restart-to-update' }] : [];
-  const settings: Item = { label: 'Settings…', command: 'settings', accelerator: `${mod}+,` };
-
-  const appMenu: Item[] = mac
-    ? [
-        {
-          label: 'Strand',
-          submenu: [{ role: 'about' }, ...restart, SEP, settings, SEP, { role: 'services' }, SEP, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, SEP, { role: 'quit' }],
-        },
-      ]
-    : [];
-
-  const file: Item = {
-    label: name('File'),
-    submenu: [
-      { label: 'New Bead…', command: 'new-bead', accelerator: `${mod}+N` },
-      ...(mac
-        ? [SEP, { role: 'close' }]
-        : [
-            SEP,
-            settings,
-            SEP,
-            { role: 'close', accelerator: 'Ctrl+W' },
-            o.platform === 'win32' ? { role: 'quit', label: 'Exit' } : { role: 'quit', label: 'Quit', accelerator: 'Ctrl+Q' },
-          ]),
-    ],
-  };
-
-  const edit: Item = mac
-    ? { label: 'Edit', role: 'editMenu' }
-    : {
-        label: name('Edit'),
-        submenu: [
-          { role: 'undo', accelerator: 'Ctrl+Z' },
-          { role: 'redo', accelerator: 'Ctrl+Y' },
-          SEP,
-          { role: 'cut', accelerator: 'Ctrl+X' },
-          { role: 'copy', accelerator: 'Ctrl+C' },
-          { role: 'paste', accelerator: 'Ctrl+V' },
-          { role: 'delete' },
-          SEP,
-          { role: 'selectAll', accelerator: 'Ctrl+A' },
-        ],
-      };
-
-  const view: Item = {
-    label: name('View'),
-    submenu: [
-      { label: 'Reload', command: 'reload', accelerator: `${mod}+R` },
-      ...(o.packaged ? [] : [{ role: 'toggleDevTools', accelerator: mac ? 'Alt+Cmd+I' : 'Ctrl+Shift+I' }]),
-      SEP,
-      { role: 'resetZoom' },
-      { role: 'zoomIn' },
-      { role: 'zoomOut' },
-      SEP,
-      { role: 'togglefullscreen' },
-    ],
-  };
-
-  const go: Item = {
-    label: name('Go'),
-    submenu: [
-      { label: 'Brief', command: 'go:brief', accelerator: `${mod}+1` },
-      { label: 'Board', command: 'go:board', accelerator: `${mod}+2` },
-      { label: 'Epics', command: 'go:epics', accelerator: `${mod}+3` },
-      { label: 'Review Queue', command: 'go:review', accelerator: `${mod}+4` },
-      SEP,
-      { label: 'Setup', command: 'go:setup' },
-      { label: 'Sessions…', command: 'sessions', accelerator: `${mod}+Shift+E` },
-      SEP,
-      { label: 'Back', command: 'back', accelerator: mac ? 'Cmd+[' : 'Alt+Left' },
-      { label: 'Forward', command: 'forward', accelerator: mac ? 'Cmd+]' : 'Alt+Right' },
-    ],
-  };
-
-  // Electron's window role would add Minimize on Ctrl+M, a carriage return in a terminal.
-  const windowMenu: Item = mac ? { label: 'Window', role: 'windowMenu' } : { label: name('Window'), submenu: [{ label: 'Minimize', command: 'minimize' }] };
-
-  const help: Item = {
-    label: name('Help'),
-    ...(mac ? { role: 'help' } : {}),
-    submenu: [
-      { label: 'Strand on GitHub', command: 'open:repo' },
-      { label: 'Report an Issue…', command: 'open:issues' },
-      SEP,
-      { label: 'Licences', command: 'licences' },
-      ...(mac ? [] : [...(restart.length ? [SEP, ...restart] : []), SEP, { role: 'about' }]),
-    ],
-  };
-
-  return withRegistration([...appMenu, file, edit, view, go, windowMenu, help], o.platform);
-}
-
-function withRegistration(items: Item[], platform: Platform): Item[] {
-  return items.map((i) => ({
-    ...i,
-    ...(i.accelerator !== undefined && displayOnly(i.accelerator, platform) ? { registerAccelerator: false as const } : {}),
-    ...(i.submenu ? { submenu: withRegistration(i.submenu, platform) } : {}),
-  }));
+  return [
+    {
+      label: 'Strand',
+      submenu: [
+        { role: 'about' },
+        ...restart,
+        SEP,
+        { label: 'Settings…', command: 'settings', accelerator: 'Cmd+,' },
+        SEP,
+        { role: 'services' },
+        SEP,
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        SEP,
+        { role: 'quit' },
+      ],
+    },
+    { label: 'File', submenu: [{ label: 'New Bead…', command: 'new-bead', accelerator: 'Cmd+N' }, SEP, { role: 'close' }] },
+    // Cmd+C, Cmd+V and Cmd+Z in text fields work only through these roles on macOS.
+    { label: 'Edit', role: 'editMenu' },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Reload', command: 'reload', accelerator: 'Cmd+R' },
+        ...(o.packaged ? [] : [{ role: 'toggleDevTools', accelerator: 'Alt+Cmd+I' }]),
+        SEP,
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        SEP,
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Go',
+      submenu: [
+        { label: 'Brief', command: 'go:brief', accelerator: 'Cmd+1' },
+        { label: 'Board', command: 'go:board', accelerator: 'Cmd+2' },
+        { label: 'Epics', command: 'go:epics', accelerator: 'Cmd+3' },
+        { label: 'Review Queue', command: 'go:review', accelerator: 'Cmd+4' },
+        SEP,
+        { label: 'Sessions…', command: 'sessions', accelerator: 'Cmd+Shift+E' },
+        SEP,
+        { label: 'Back', command: 'back', accelerator: 'Cmd+[' },
+        { label: 'Forward', command: 'forward', accelerator: 'Cmd+]' },
+      ],
+    },
+    { label: 'Window', role: 'windowMenu' },
+    {
+      label: 'Help',
+      role: 'help',
+      submenu: [
+        { label: 'Strand on GitHub', command: 'open:repo' },
+        { label: 'Report an Issue…', command: 'open:issues' },
+        SEP,
+        { label: 'Licences', command: 'licences' },
+      ],
+    },
+  ];
 }
 
 export type UnloadPrompt = { message: string; detail: string; buttons: [string, string] };

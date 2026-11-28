@@ -11,7 +11,7 @@ import { acceptResult } from './lib/detail.ts';
 import { layoutClasses } from './lib/drawer.ts';
 import { liveBeadIds, withTerminal } from './lib/terminal.ts';
 import { useDrawers } from './useDrawers.ts';
-import { headerCounts } from './lib/views.ts';
+import { HEADER_TABS, headerCounts } from './lib/views.ts';
 import { useUnloadGuard } from './useUnloadGuard.ts';
 import { useRoute } from './useRoute.ts';
 import { usePoll } from './usePoll.ts';
@@ -21,18 +21,11 @@ import { BriefView } from './views/Brief.tsx';
 import { EpicsView } from './views/Epics.tsx';
 import { ReviewView } from './views/Review.tsx';
 import { SettingsView } from './views/Settings.tsx';
-import { SetupView } from './views/Setup.tsx';
-import { landOnSetup, SKIP_KEY } from './lib/setup.ts';
+import { landOnSetup, SETUP_HASH, SKIP_KEY } from './lib/setup.ts';
+import { AppMenubar } from './components/AppMenubar.tsx';
+import iconUrl from '../../electron/icon.png';
 import { useMenu } from './useMenu.ts';
 
-const TABS = [
-  ['brief', 'Brief'],
-  ['board', 'Board'],
-  ['epics', 'Epics'],
-  ['review', 'Review queue'],
-  ['settings', 'Settings'],
-  ['setup', 'Setup'],
-] as const;
 
 /** Matches the views' poll and the server's 15 s cache TTL. */
 const POLL_MS = 15_000;
@@ -57,7 +50,7 @@ export function App() {
     }
     getSetup().then(
       (s) => {
-        if (landOnSetup(s, route.view, skipped)) location.hash = '#/setup';
+        if (landOnSetup(s, route.view, skipped)) location.hash = SETUP_HASH;
       },
       () => {},
     );
@@ -154,7 +147,7 @@ export function App() {
   const [sessionsRequest, setSessionsRequest] = useState(0);
   const openRef = useRef(open);
   openRef.current = open;
-  useMenu({
+  const menu = useMenu({
     newBead: () => !dialogOpen.current && openRef.current(),
     sessions: () => setSessionsRequest((n) => n + 1),
   });
@@ -162,9 +155,11 @@ export function App() {
   return (
     <TooltipProvider delayDuration={300}>
       <header className="appbar">
-        <h1 className="text-[15px] font-semibold whitespace-nowrap">Strand</h1>
+        <img src={iconUrl} alt="" aria-hidden className="appicon" />
+        <h1 className="sr-only">Strand</h1>
+        <AppMenubar menus={menu.menus} open={menu.open} onOpenChange={menu.setOpen} onAction={menu.run} />
         <nav aria-label="Views">
-          {TABS.map(([view, label]) => (
+          {HEADER_TABS.map(([view, label]) => (
             <Button key={view} asChild variant={route.view === view ? 'secondary' : 'ghost'} size="sm" className={route.view === view ? 'font-semibold' : 'text-muted-foreground'}>
               <a href={`#/${view}`} aria-current={route.view === view ? 'page' : undefined}>
                 {label}
@@ -204,7 +199,6 @@ export function App() {
         {route.view === 'epics' && <EpicsView selected={route.epicId} onError={onError} />}
         {route.view === 'review' && <ReviewView onError={onError} />}
         {route.view === 'settings' && <SettingsView onError={onError} />}
-        {route.view === 'setup' && <SetupView onError={onError} />}
       </main>
       {creating && <NewBead onClose={close} onCreated={created} />}
     </TooltipProvider>

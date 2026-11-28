@@ -13,6 +13,17 @@ main { flex: 1; overflow: auto; padding: 14px 16px; }
 .appbar > * { flex: none; }
 .appbar nav { display: flex; gap: 2px; min-width: 0; overflow-x: auto; flex: 0 1 auto; }
 .appbar .spacer { flex: 1 1 0; }
+.appbar .appicon { width: 20px; height: 20px; }
+
+/* Desktop app (ADR 0030): no OS title bar, so the header is the title bar. It drags the window; its controls do
+   not. Windows and Linux draw their window buttons over the right end (titleBarOverlay); macOS's traffic lights
+   sit at the left. 44px matches the overlay height set in electron/main.ts. */
+html[data-desktop] .appbar { min-height: 44px; padding-top: 0; padding-bottom: 0; app-region: drag; -webkit-app-region: drag; user-select: none; }
+html[data-desktop] .appbar :is(button, a, input, select, [role="menubar"], [role="menuitem"]) { app-region: no-drag; -webkit-app-region: no-drag; }
+html[data-desktop="win32"] .appbar, html[data-desktop="linux"] .appbar {
+  padding-right: max(14px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 150px))));
+}
+html[data-desktop="darwin"] .appbar { padding-left: 80px; }
 @media (max-width: 900px) {
   .appbar { gap: 6px; padding: 6px 8px; }
   .sessbtn.has .sesslabel { display: none; }

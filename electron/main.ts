@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BrowserWindow, Menu, Notification, app, dialog, net, session, shell, type MenuItemConstructorOptions } from 'electron';
+import { BrowserWindow, Menu, Notification, app, dialog, ipcMain, net, session, shell, type MenuItemConstructorOptions } from 'electron';
 import {
   READY_TIMEOUT_MS,
   STOP_GRACE_MS,
@@ -26,12 +26,21 @@ import {
   type Ready,
 } from './handoff.ts';
 import { electronNoticeDir, licencesNavigation, licencesPage, licencesRequestAllowed, readNotices } from './licences.ts';
-import { isPageCommand, linkFor, menuTemplate, unloadPrompt, type Command, type Item, type Platform } from './menu.ts';
+import { isPageCommand, linkFor, mainCommandAllowed, menuTemplate, unloadPrompt, type Command, type Item, type PageMessage } from './menu.ts';
 import { readyMessage, sha256File, startUpdates, type UpdaterLike, type Updates } from './update.ts';
 
 const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ICON = path.join(APP_ROOT, 'electron', 'icon.png');
-const PLATFORM: Platform = process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux';
+const PLATFORM: 'darwin' | 'win32' | 'linux' = process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux';
+/**
+ * No OS title bar (ADR 0030): the page's header is the title bar. Windows and Linux draw their window buttons over
+ * its right end, in the header's colours (the cockpit has one, light, theme); macOS insets its traffic lights.
+ * The height matches the header's in ui/src/layout.css.
+ */
+const TITLE_BAR =
+  PLATFORM === 'darwin'
+    ? ({ titleBarStyle: 'hiddenInset' } as const)
+    : ({ titleBarStyle: 'hidden', titleBarOverlay: { color: '#ffffff', symbolColor: '#0a0a0a', height: 44 } } as const);
 
 // Electron's default profile folder would be the strand config folder itself.
 app.setPath('userData', userDataDir(app.getPath('appData')));
@@ -57,6 +66,7 @@ function createWindow(): BrowserWindow {
     height: 900,
     title: 'Strand',
     show: true,
+    ...TITLE_BAR,
     // macOS takes the icon from the app bundle.
     ...(PLATFORM === 'darwin' ? {} : { icon: ICON }),
     webPreferences: {
@@ -65,11 +75,16 @@ function createWindow(): BrowserWindow {
       sandbox: true,
       nodeIntegration: false,
       webviewTag: false,
-      // Receive-only menu commands (ADR 0030).
+      // Menu messages to the page, and a fixed set of window actions from it (ADR 0030).
       preload: path.join(APP_ROOT, 'electron', 'preload.cjs'),
     },
   });
   const wc = w.webContents;
+  // Each load starts a fresh preload: tell it the states its menu bar shows.
+  wc.on('dom-ready', () => {
+    if (!app.isPackaged) sendToPage('dev-build');
+    if (updateReady) sendToPage('update-ready');
+  });
   // A terminal link: an http(s) URL opens in the default browser; the window itself never opens another.
   wc.setWindowOpenHandler(({ url }) => {
     const { action, external } = windowOpenDecision(url);
@@ -202,6 +217,19 @@ function offerUpdate(version: string): void {
   if (updateReady) return;
   updateReady = true;
   setMenu();
+  sendToPage('update-ready');
+}
+
+function sendToPage(m: PageMessage): void {
+  win?.webContents.send('strand:menu', m);
+}
+
+/** A window action the page's menu bar asked for: only from the cockpit page in our window, only a listed name. */
+function onRun(e: Electron.IpcMainEvent, name: unknown): void {
+  if (!win || e.sender !== win.webContents || !ready) return;
+  if (!navigationAllowed(e.senderFrame?.url ?? '', ready.port)) return;
+  if (!mainCommandAllowed(name, { packaged: app.isPackaged })) return;
+  runCommand(name);
 }
 
 /** What each menu command does. Page commands go to the page through the preload; the rest happen here. */
@@ -219,8 +247,23 @@ function runCommand(c: Command): void {
       return;
     case 'reload':
       return wc?.reload();
-    case 'minimize':
-      return win?.minimize();
+    case 'zoom-in':
+      return wc?.setZoomLevel(Math.min(wc.getZoomLevel() + 0.5, 5));
+    case 'zoom-out':
+      return wc?.setZoomLevel(Math.max(wc.getZoomLevel() - 0.5, -3));
+    case 'zoom-reset':
+      return wc?.setZoomLevel(0);
+    case 'fullscreen':
+      return win?.setFullScreen(!win.isFullScreen());
+    case 'devtools':
+      if (!app.isPackaged) wc?.toggleDevTools();
+      return;
+    case 'about':
+      return app.showAboutPanel();
+    case 'close':
+      return win?.close();
+    case 'quit':
+      return app.quit();
     case 'restart-to-update':
       if (updates?.restartToUpdate()) app.quit();
       return;
@@ -302,8 +345,10 @@ function toElectron(items: Item[]): MenuItemConstructorOptions[] {
   }));
 }
 
+/** The OS menu bar on macOS. Windows and Linux have none: the page draws it (ADR 0030). */
 function setMenu(): void {
-  Menu.setApplicationMenu(Menu.buildFromTemplate(toElectron(menuTemplate({ platform: PLATFORM, packaged: app.isPackaged, updateReady }))));
+  if (PLATFORM !== 'darwin') return Menu.setApplicationMenu(null);
+  Menu.setApplicationMenu(Menu.buildFromTemplate(toElectron(menuTemplate({ packaged: app.isPackaged, updateReady }))));
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -330,6 +375,7 @@ if (!app.requestSingleInstanceLock()) {
       ...(PLATFORM === 'darwin' ? {} : { iconPath: ICON }),
     });
     setMenu();
+    ipcMain.on('strand:run', onRun);
     createWindow();
     startServer();
     void setUpUpdates();

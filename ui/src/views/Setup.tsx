@@ -49,6 +49,7 @@ function Offer({ row, busy, onInstall }: { row: SetupRow; busy: boolean; onInsta
   );
 }
 
+/** The tool check and installer: the Tools section at the top of Settings. */
 export function SetupView({ onError }: { onError: (e: unknown) => void }) {
   const [setup, setSetup] = useState<Setup>();
   const [install, setInstall] = useState<InstallState>();
@@ -87,8 +88,8 @@ export function SetupView({ onError }: { onError: (e: unknown) => void }) {
   const doneOffer = install && setup?.offers.find((o) => o.tool === install.tool);
 
   return (
-    <section aria-label="Setup" aria-busy={!setup} className="max-w-3xl">
-      <h2 className="mb-1 text-lg font-semibold">Set up Strand</h2>
+    <section aria-label="Tools" aria-busy={!setup} className="mb-6">
+      <h3 className="mb-1 text-base font-semibold">Tools</h3>
       <p className="mb-3.5 text-muted-foreground">
         Strand works with these tools. It can install a missing one from its official source, once you accept its licence. It never signs in for you.
       </p>

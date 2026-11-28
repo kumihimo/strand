@@ -5,6 +5,9 @@ import type { Route } from './route.ts';
 /** sessionStorage key: the engineer chose "Skip for now" in this window. */
 export const SKIP_KEY = 'strand.setup.skipped';
 
+/** Where a first run lands: Settings, whose Tools section is Setup. */
+export const SETUP_HASH = '#/settings';
+
 /** Open on Setup instead of the Brief while a required tool is missing or old, unless skipped in this window. */
 export function landOnSetup(v: SetupView | undefined, view: Route['view'], skipped: boolean): boolean {
   return v !== undefined && !v.ready && !skipped && view === 'brief';

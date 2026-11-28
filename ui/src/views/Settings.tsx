@@ -9,6 +9,7 @@ import { Input } from '../components/ui/input.tsx';
 import { Label } from '../components/ui/label.tsx';
 import { NativeSelect, NativeSelectOption } from '../components/ui/native-select.tsx';
 import { draftOf, hintsOf, patchOf, placeholderOf } from '../lib/settings.ts';
+import { SetupView } from './Setup.tsx';
 import { useApi } from '../useApi.ts';
 
 /** Fields grouped as the screen shows them. */
@@ -89,7 +90,9 @@ export function SettingsView({ onError }: { onError: (e: unknown) => void }) {
 
   return (
     <section aria-label="Settings" aria-busy={!current} className="max-w-3xl">
-      <h2 className="mb-1 text-lg font-semibold">Settings</h2>
+      <h2 className="mb-3 text-lg font-semibold">Settings</h2>
+      <SetupView onError={onError} />
+      <h3 className="mb-1 text-base font-semibold">Configuration</h3>
       <p className="mb-3.5 text-muted-foreground">
         Saved to <code className="font-mono text-[12.5px]">{current?.path ?? 'config.json'}</code>. An empty field uses the default shown in it.
       </p>
