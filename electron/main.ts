@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, Menu, MenuItem, Notification, app, dialog, net, session, shell } from 'electron';
+import { BrowserWindow, Menu, Notification, app, dialog, net, session, shell, type MenuItemConstructorOptions } from 'electron';
 import {
   READY_TIMEOUT_MS,
   STOP_GRACE_MS,
@@ -19,16 +19,18 @@ import {
   navigationAllowed,
   parseReady,
   permissionAllowed,
-  quitDecision,
   serverCommand,
   serverEnv,
   userDataDir,
   windowOpenDecision,
   type Ready,
 } from './handoff.ts';
+import { isPageCommand, linkFor, menuTemplate, unloadPrompt, type Command, type Item, type Platform } from './menu.ts';
 import { readyMessage, sha256File, startUpdates, type UpdaterLike, type Updates } from './update.ts';
 
 const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const ICON = path.join(APP_ROOT, 'electron', 'icon.png');
+const PLATFORM: Platform = process.platform === 'darwin' || process.platform === 'win32' ? process.platform : 'linux';
 
 // Electron's default profile folder would be the strand config folder itself.
 app.setPath('userData', userDataDir(app.getPath('appData')));
@@ -54,7 +56,17 @@ function createWindow(): BrowserWindow {
     height: 900,
     title: 'Strand',
     show: true,
-    webPreferences: { session: ses, contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false },
+    // macOS takes the icon from the app bundle.
+    ...(PLATFORM === 'darwin' ? {} : { icon: ICON }),
+    webPreferences: {
+      session: ses,
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      webviewTag: false,
+      // Receive-only menu commands (ADR 0030).
+      preload: path.join(APP_ROOT, 'electron', 'preload.cjs'),
+    },
   });
   const wc = w.webContents;
   // A terminal link: an http(s) URL opens in the default browser; the window itself never opens another.
@@ -69,21 +81,20 @@ function createWindow(): BrowserWindow {
   wc.on('will-navigate', guard);
   wc.on('will-redirect', guard);
   wc.on('will-attach-webview', (e) => e.preventDefault());
-  // The page's unload guard fires while a terminal is live. Only an owning app stops sessions by closing.
+  // The page's unload guard fires while a terminal is live or an edit is unsaved. 'close' comes before the page's
+  // beforeunload, so an unload with no close is a reload, which keeps the server and asks in its own words.
+  let closing = false;
+  w.on('close', () => {
+    closing = true;
+  });
   wc.on('will-prevent-unload', (e) => {
-    const decision = quitDecision({ owned: owned !== undefined, unloadBlocked: true });
-    if (decision === 'quit') return e.preventDefault();
-    const choice = dialog.showMessageBoxSync(w, {
-      type: 'warning',
-      buttons: ['Quit', 'Cancel'],
-      defaultId: 1,
-      cancelId: 1,
-      title: 'Strand',
-      message: 'A Claude Code session is still running.',
-      detail: 'Quitting Strand stops the cockpit server and ends the session. It can be resumed later.',
-    });
+    const prompt = unloadPrompt({ closing, owned: owned !== undefined });
+    const wasClosing = closing;
+    closing = false;
+    if (!prompt) return e.preventDefault();
+    const choice = dialog.showMessageBoxSync(w, { type: 'warning', buttons: prompt.buttons, defaultId: 1, cancelId: 1, title: 'Strand', message: prompt.message, detail: prompt.detail });
     if (choice === 0) e.preventDefault();
-    else updates?.cancelRestart();
+    else if (wasClosing) updates?.cancelRestart();
   });
   w.on('closed', () => {
     if (win === w) win = undefined;
@@ -182,28 +193,49 @@ async function setUpUpdates(): Promise<void> {
   }
 }
 
-let updateMenuAdded = false;
+let updateReady = false;
 
-/** A verified update: say so once, and offer "Restart to update", which quits through the usual guard. */
+/** A verified update: say so once, and offer Restart to Update in the menu, which quits through the usual guard. */
 function offerUpdate(version: string): void {
   if (Notification.isSupported()) new Notification({ title: 'Strand', body: readyMessage(version) }).show();
-  if (updateMenuAdded) return;
-  updateMenuAdded = true;
-  const menu = Menu.getApplicationMenu() ?? new Menu();
-  menu.append(
-    new MenuItem({
-      label: 'Update',
-      submenu: [
-        {
-          label: 'Restart to update',
-          click: () => {
-            if (updates?.restartToUpdate()) app.quit();
-          },
-        },
-      ],
-    }),
-  );
-  Menu.setApplicationMenu(menu);
+  if (updateReady) return;
+  updateReady = true;
+  setMenu();
+}
+
+/** What each menu command does. Page commands go to the page through the preload; the rest happen here. */
+function runCommand(c: Command): void {
+  const wc = win?.webContents;
+  if (isPageCommand(c)) return wc?.send('strand:menu', c);
+  const link = linkFor(c);
+  if (link !== undefined) return void shell.openExternal(link).catch((e: unknown) => console.error(`strand: could not open a link: ${String(e)}`));
+  switch (c) {
+    case 'back':
+      if (wc?.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
+      return;
+    case 'forward':
+      if (wc?.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
+      return;
+    case 'reload':
+      return wc?.reload();
+    case 'minimize':
+      return win?.minimize();
+    case 'restart-to-update':
+      if (updates?.restartToUpdate()) app.quit();
+      return;
+  }
+}
+
+function toElectron(items: Item[]): MenuItemConstructorOptions[] {
+  return items.map(({ command, submenu, ...rest }) => ({
+    ...(rest as MenuItemConstructorOptions),
+    ...(command !== undefined ? { click: () => runCommand(command) } : {}),
+    ...(submenu ? { submenu: toElectron(submenu) } : {}),
+  }));
+}
+
+function setMenu(): void {
+  Menu.setApplicationMenu(Menu.buildFromTemplate(toElectron(menuTemplate({ platform: PLATFORM, packaged: app.isPackaged, updateReady }))));
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -223,6 +255,13 @@ if (!app.requestSingleInstanceLock()) {
     const ses = session.fromPartition('strand');
     ses.setPermissionRequestHandler((_wc, permission, cb) => cb(permissionAllowed(permission)));
     ses.setPermissionCheckHandler((_wc, permission) => permissionAllowed(permission));
+    app.setAboutPanelOptions({
+      applicationName: 'Strand',
+      applicationVersion: app.getVersion(),
+      copyright: '© The Strand Authors',
+      ...(PLATFORM === 'darwin' ? {} : { iconPath: ICON }),
+    });
+    setMenu();
     createWindow();
     startServer();
     void setUpUpdates();

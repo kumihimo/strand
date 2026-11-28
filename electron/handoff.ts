@@ -73,14 +73,6 @@ export function permissionAllowed(permission: string): boolean {
   return permission === 'clipboard-sanitized-write';
 }
 
-/**
- * What a page's blocked unload (a live terminal) means. Only an app that owns the server stops sessions by
- * quitting, so only it asks. An attached app's server keeps its sessions, so the window just closes.
- */
-export function quitDecision(o: { owned: boolean; unloadBlocked: boolean }): 'confirm' | 'quit' {
-  return o.owned && o.unloadBlocked ? 'confirm' : 'quit';
-}
-
 /** The server child: the strand CLI in `--ipc` mode, under `STRAND_NODE` or `node` from PATH. No key, ever. */
 export function serverCommand(appRoot: string, env: NodeJS.ProcessEnv): { cmd: string; args: string[] } {
   return { cmd: env.STRAND_NODE || 'node', args: [path.join(appRoot, 'src', 'cli', 'strand.ts'), 'cockpit', '--ipc'] };

@@ -1,4 +1,4 @@
-import { useRef, useState, type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import { cn } from 'cn';
 import type { TerminalList } from '../api.ts';
 import { sessionRows, type SessionRow } from '../lib/terminal.ts';
@@ -15,6 +15,8 @@ type P = {
   onOpen: (beadId: string) => void;
   /** So the caller can return focus to the button. */
   buttonRef?: Ref<HTMLButtonElement>;
+  /** Opens the menu each time it changes to a new number above 0 (Go > Sessions… in the desktop app). */
+  openRequest?: number;
 };
 
 /** "started 5 min ago" or "started just now": an ended row's age is since the start, not since the exit. */
@@ -24,10 +26,15 @@ const startedAgo = (since: string) => (since === 'just now' ? 'started just now'
  * The header's Sessions menu: live cockpit terminals across beads, and a jump to one. Radix gives it the menu
  * keys (arrows, Home, End, type-ahead), Escape and outside click, and puts focus back on the button on close.
  */
-export function SessionsMenu({ list, failed, cards, onOpen, buttonRef }: P) {
+export function SessionsMenu({ list, failed, cards, onOpen, buttonRef, openRequest = 0 }: P) {
   const [open, setOpen] = useState(false);
   // A chosen row sends focus to its terminal: the menu must not pull it back to the button as it closes.
   const chosen = useRef(false);
+  useEffect(() => {
+    if (openRequest === 0) return;
+    chosen.current = false;
+    setOpen(true);
+  }, [openRequest]);
 
   const { live, ended } = sessionRows(list?.terminals ?? [], cards, Date.now());
   const note =

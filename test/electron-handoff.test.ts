@@ -11,7 +11,6 @@ import {
   navigationAllowed,
   parseReady,
   permissionAllowed,
-  quitDecision,
   serverCommand,
   serverEnv,
   userDataDir,
@@ -100,11 +99,7 @@ test('AT-7 permissions are denied except clipboard write', () => {
   }
 });
 
-test('AT-9 quitDecision: an owning app asks before a blocked unload; an attached app never asks', () => {
-  assert.equal(quitDecision({ owned: true, unloadBlocked: true }), 'confirm');
-  assert.equal(quitDecision({ owned: true, unloadBlocked: false }), 'quit');
-  assert.equal(quitDecision({ owned: false, unloadBlocked: true }), 'quit');
-  assert.equal(quitDecision({ owned: false, unloadBlocked: false }), 'quit');
+test('AT-9 the quit grace period and the ready timeout (the unload prompt is in electron-menu.test.ts)', () => {
   assert.equal(STOP_GRACE_MS, 5000);
   assert.ok(READY_TIMEOUT_MS >= 10_000);
 });
