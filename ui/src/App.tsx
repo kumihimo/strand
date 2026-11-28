@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TerminalInfo } from '../../src/cockpit/pty.ts';
-import { ApiError, getBoard, getTerminals, type TerminalList } from './api.ts';
+import { ApiError, getBoard, getSetup, getTerminals, type TerminalList } from './api.ts';
 import { notifyChanged, useOnChanged } from './changes.ts';
 import { NewBead } from './components/NewBead.tsx';
 import { Alert, AlertAction, AlertDescription } from './components/ui/alert.tsx';
@@ -21,6 +21,8 @@ import { BriefView } from './views/Brief.tsx';
 import { EpicsView } from './views/Epics.tsx';
 import { ReviewView } from './views/Review.tsx';
 import { SettingsView } from './views/Settings.tsx';
+import { SetupView } from './views/Setup.tsx';
+import { landOnSetup, SKIP_KEY } from './lib/setup.ts';
 
 const TABS = [
   ['brief', 'Brief'],
@@ -28,6 +30,7 @@ const TABS = [
   ['epics', 'Epics'],
   ['review', 'Review queue'],
   ['settings', 'Settings'],
+  ['setup', 'Setup'],
 ] as const;
 
 /** Matches the views' poll and the server's 15 s cache TTL. */
@@ -42,6 +45,24 @@ export function App() {
   const [creating, setCreating] = useState(false);
   const newBtn = useRef<HTMLButtonElement>(null);
   const onError = useCallback((e: unknown) => setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e)), []);
+
+  // First run: while a required tool is missing or old, open on Setup instead of the Brief (ADR 0029).
+  useEffect(() => {
+    let skipped = false;
+    try {
+      skipped = sessionStorage.getItem(SKIP_KEY) === '1';
+    } catch {
+      // Storage blocked: treat as not skipped.
+    }
+    getSetup().then(
+      (s) => {
+        if (landOnSetup(s, route.view, skipped)) location.hash = '#/setup';
+      },
+      () => {},
+    );
+    // Once per load: the route at load time decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The banner is dismissible and also clears on navigation.
   useEffect(() => setError(undefined), [route.view, route.beadId, route.epicId]);
@@ -173,6 +194,7 @@ export function App() {
         {route.view === 'epics' && <EpicsView selected={route.epicId} onError={onError} />}
         {route.view === 'review' && <ReviewView onError={onError} />}
         {route.view === 'settings' && <SettingsView onError={onError} />}
+        {route.view === 'setup' && <SetupView onError={onError} />}
       </main>
       {creating && <NewBead onClose={close} onCreated={created} />}
     </TooltipProvider>
