@@ -3,9 +3,11 @@
 // over the IPC channel. The key is set here as the session cookie, on an in-memory partition, and the window
 // loads the server's root with no key in the URL. Electron runs this file with Node's type stripping.
 import { spawn, type ChildProcess } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, app, dialog, session } from 'electron';
+import { BrowserWindow, Menu, MenuItem, Notification, app, dialog, net, session } from 'electron';
 import {
   READY_TIMEOUT_MS,
   STOP_GRACE_MS,
@@ -23,6 +25,7 @@ import {
   userDataDir,
   type Ready,
 } from './handoff.ts';
+import { readyMessage, sha256File, startUpdates, type UpdaterLike, type Updates } from './update.ts';
 
 const APP_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -35,6 +38,7 @@ let server: ChildProcess | undefined;
 let owned: ChildProcess | undefined;
 let ready: Ready | undefined;
 let stopping = false;
+let updates: Updates | undefined;
 const tail = new StderrTail(20);
 
 function showError(reason: string): void {
@@ -73,6 +77,7 @@ function createWindow(): BrowserWindow {
       detail: 'Quitting Strand stops the cockpit server and ends the session. It can be resumed later.',
     });
     if (choice === 0) e.preventDefault();
+    else updates?.cancelRestart();
   });
   w.on('closed', () => {
     if (win === w) win = undefined;
@@ -138,6 +143,63 @@ function startServer(): void {
   });
 }
 
+// Auto-update (ADR 0025): checks GitHub Releases, verifies the download against the GPG-signed SHA256SUMS, and
+// installs only on a quit the user starts. Never in a dev run, and never while STRAND_NO_UPDATE is set.
+async function setUpUpdates(): Promise<void> {
+  if (!app.isPackaged || process.env.STRAND_NO_UPDATE !== undefined) return;
+  try {
+    const { default: electronUpdater } = await import('electron-updater');
+    const updater = electronUpdater.autoUpdater;
+    updates = startUpdates({
+      isPackaged: app.isPackaged,
+      env: process.env,
+      deps: {
+        updater: updater as unknown as UpdaterLike,
+        publicKey: readFileSync(path.join(APP_ROOT, 'RELEASE-KEY.asc'), 'utf8'),
+        fetchBytes: async (url) => {
+          const r = await net.fetch(url, { redirect: 'follow' });
+          if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+          return new Uint8Array(await r.arrayBuffer());
+        },
+        hashFile: sha256File,
+        removeFile: (f) => rm(f, { force: true }),
+        log: (l) => process.stderr.write(`strand update: ${l}\n`),
+        onVerified: offerUpdate,
+        clock: {
+          setTimeout: (fn, ms) => setTimeout(fn, ms).unref(),
+          setInterval: (fn, ms) => setInterval(fn, ms).unref(),
+        },
+      },
+    });
+  } catch (e) {
+    process.stderr.write(`strand update: not started: ${e instanceof Error ? e.message : String(e)}\n`);
+  }
+}
+
+let updateMenuAdded = false;
+
+/** A verified update: say so once, and offer "Restart to update", which quits through the usual guard. */
+function offerUpdate(version: string): void {
+  if (Notification.isSupported()) new Notification({ title: 'Strand', body: readyMessage(version) }).show();
+  if (updateMenuAdded) return;
+  updateMenuAdded = true;
+  const menu = Menu.getApplicationMenu() ?? new Menu();
+  menu.append(
+    new MenuItem({
+      label: 'Update',
+      submenu: [
+        {
+          label: 'Restart to update',
+          click: () => {
+            if (updates?.restartToUpdate()) app.quit();
+          },
+        },
+      ],
+    }),
+  );
+  Menu.setApplicationMenu(menu);
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -157,6 +219,7 @@ if (!app.requestSingleInstanceLock()) {
     ses.setPermissionCheckHandler((_wc, permission) => permissionAllowed(permission));
     createWindow();
     startServer();
+    void setUpUpdates();
   });
 
   app.on('activate', () => {
@@ -183,6 +246,9 @@ if (!app.requestSingleInstanceLock()) {
       if (child.exitCode === null) child.kill();
     }, STOP_GRACE_MS).unref();
   });
+
+  // The last event of a quit that went ahead: the user's quit, never one of ours. A verified update installs here.
+  app.on('quit', (_e, exitCode) => updates?.onQuit(exitCode));
 
   app.on('will-quit', () => {
     // A child that never became ready, or an attaching one still running, is ended with the app.
