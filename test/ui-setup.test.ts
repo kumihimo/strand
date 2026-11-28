@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SetupView } from '../src/cockpit/setup-routes.ts';
 import type { ToolState } from '../src/core/tools.ts';
-import { landOnSetup, rowOf } from '../ui/src/lib/setup.ts';
+import { SETUP_HASH, landOnSetup, rowOf } from '../ui/src/lib/setup.ts';
 import { parseRoute } from '../ui/src/lib/route.ts';
 
 const t = (o: Partial<ToolState> & Pick<ToolState, 'name' | 'status'>): ToolState => ({ min: '1.0.0', required: true, ...o });
@@ -30,8 +30,10 @@ test('AT-3 the app lands on Setup instead of the Brief while setup is needed and
   assert.equal(landOnSetup(undefined, 'brief', false), false);
 });
 
-test('parseRoute knows the setup view', () => {
-  assert.deepEqual(parseRoute('#/setup'), { view: 'setup' });
+test('AT-7 Setup lives in Settings: #/setup opens Settings, and a first run lands there', () => {
+  assert.deepEqual(parseRoute('#/setup'), { view: 'settings' });
+  assert.deepEqual(parseRoute('#/settings'), { view: 'settings' });
+  assert.equal(SETUP_HASH, '#/settings');
 });
 
 test('AT-4 rowOf: a missing offered tool can be installed; an old one gets its upgrade; git and bd come with the app', () => {

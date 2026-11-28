@@ -36,10 +36,10 @@ src/cockpit/     Fastify server, auth, routes, actions (open), read model; pty.t
                  desktop.ts (launches the desktop app)
 electron/        the desktop app's main process: main.ts (starts strand cockpit --ipc, sets the cookie, the
                  window, the menu) + handoff.ts (pure, unit-tested: IPC message, cookie, navigation, quit rules)
-                 + menu.ts (pure, unit-tested: the menu bar per platform, unload prompts) + preload.cjs
-                 (receive-only menu commands, ADR 0030) + icon.png + licences.ts (pure, unit-tested: Help >
+                 + menu.ts (pure, unit-tested: the macOS menu, command lists, unload prompts) + preload.cjs
+                 (fixed-name bridge both ways, ADR 0030) + icon.png + licences.ts (pure, unit-tested: Help >
                  Licences page and its navigation rules, ADR 0031)
-ui/src/          React app: views/, components/ (TerminalPane, TerminalBoundary, EditBead, ViewControls, ...),
+ui/src/          React app: views/, components/ (AppMenubar, TerminalPane, TerminalBoundary, EditBead, ViewControls, ...),
                  components/ui/ (shadcn/ui, from ui/components.json), index.css (theme), layout.css,
                  lib/ (pure, unit-tested: filter, terminal, detail, drawer, views, ...), useStoredView, useDrawers,
                  useUnloadGuard, api.ts
