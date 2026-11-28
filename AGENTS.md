@@ -39,8 +39,8 @@ electron/        the desktop app's main process: main.ts (starts strand cockpit 
                  + menu.ts (pure, unit-tested: the macOS menu, command lists, unload prompts) + preload.cjs
                  (fixed-name bridge both ways, ADR 0030) + icon.png + licences.ts (pure, unit-tested: Help >
                  Licences page and its navigation rules, ADR 0031)
-ui/src/          React app: views/, components/ (AppMenubar, TerminalPane, TerminalBoundary, EditBead, ViewControls, ...),
-                 components/ui/ (shadcn/ui, from ui/components.json), index.css (theme), layout.css,
+ui/src/          React app: views/, components/ (AppMenubar, AppSidebar, TerminalPane, TerminalBoundary, EditBead, ViewControls, ...),
+                 components/ui/ (shadcn/ui, from ui/components.json), hooks/ (shadcn hooks), index.css (theme), layout.css,
                  lib/ (pure, unit-tested: filter, terminal, detail, drawer, views, ...), useStoredView, useDrawers,
                  useUnloadGuard, api.ts
 commands/, skills/strand-work/, hooks/hooks.json, .claude-plugin/   the Claude Code plugin

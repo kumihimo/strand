@@ -8,7 +8,7 @@ export type Platform = 'darwin' | 'win32' | 'linux';
 /** Actions the page asks the main process to run; electron/menu.ts MAIN_COMMANDS and preload.cjs RUN match it. */
 export const MAIN_ACTIONS = ['zoom-in', 'zoom-out', 'zoom-reset', 'fullscreen', 'devtools', 'about', 'close', 'quit', 'restart-to-update', 'licences'] as const;
 export type MainAction = (typeof MAIN_ACTIONS)[number];
-export type PageAction = 'new-bead' | 'settings' | 'reload' | 'go:brief' | 'go:board' | 'go:epics' | 'go:review' | 'sessions' | 'back' | 'forward' | 'open:repo' | 'open:issues';
+export type PageAction = 'toggle-sidebar' | 'new-bead' | 'settings' | 'reload' | 'go:brief' | 'go:board' | 'go:epics' | 'go:review' | 'sessions' | 'back' | 'forward' | 'open:repo' | 'open:issues';
 export type MenuAction = MainAction | PageAction;
 
 export const isMainAction = (a: string): a is MainAction => (MAIN_ACTIONS as readonly string[]).includes(a);
@@ -45,6 +45,8 @@ export function appMenus(o: { platform: Platform; desktop: boolean; devBuild: bo
     d && (o.platform === 'win32' ? item('Exit', 'quit') : item('Quit', 'quit', 'Ctrl+Q')),
   ]);
   const view = tidy([
+    item('Toggle Sidebar', 'toggle-sidebar', 'Ctrl+B'),
+    'separator',
     item('Reload', 'reload', 'Ctrl+R'),
     d && o.devBuild && item('Toggle Developer Tools', 'devtools', 'Ctrl+Shift+I'),
     'separator',

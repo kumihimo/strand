@@ -27,7 +27,7 @@ test('AT-3 File, View, Go and Help items and their shortcuts', () => {
   const linux = desk('linux');
   assert.deepEqual(labels(items(win, 'file')), ['New Bead…', 'Settings…', 'Close Window', 'Exit']);
   assert.deepEqual(labels(items(linux, 'file')), ['New Bead…', 'Settings…', 'Close Window', 'Quit']);
-  assert.deepEqual(labels(items(win, 'view')), ['Reload', 'Actual Size', 'Zoom In', 'Zoom Out', 'Toggle Full Screen']);
+  assert.deepEqual(labels(items(win, 'view')), ['Toggle Sidebar', 'Reload', 'Actual Size', 'Zoom In', 'Zoom Out', 'Toggle Full Screen']);
   assert.deepEqual(labels(items(win, 'go')), ['Brief', 'Board', 'Epics', 'Review Queue', 'Sessions…', 'Back', 'Forward']);
   assert.deepEqual(labels(items(win, 'help')), ['Strand on GitHub', 'Report an Issue…', 'Licences', 'About Strand']);
   const sc = (m: MenuDef[], l: string) => [entry(m, l)?.action, entry(m, l)?.shortcut];
@@ -36,6 +36,7 @@ test('AT-3 File, View, Go and Help items and their shortcuts', () => {
   assert.deepEqual(sc(win, 'Close Window'), ['close', 'Ctrl+W']);
   assert.deepEqual(sc(win, 'Exit'), ['quit', undefined]);
   assert.deepEqual(sc(linux, 'Quit'), ['quit', 'Ctrl+Q']);
+  assert.deepEqual(sc(win, 'Toggle Sidebar'), ['toggle-sidebar', 'Ctrl+B']);
   assert.deepEqual(sc(win, 'Reload'), ['reload', 'Ctrl+R']);
   assert.deepEqual(sc(win, 'Actual Size'), ['zoom-reset', 'Ctrl+0']);
   assert.deepEqual(sc(win, 'Zoom In'), ['zoom-in', 'Ctrl+=']);
@@ -79,7 +80,7 @@ test('AT-5 a browser tab has no desktop-only items and shows no shortcuts', () =
       assert.equal(e.shortcut, undefined, e.label);
     }
     assert.deepEqual(labels(items(m, 'file')), ['New Bead…', 'Settings…']);
-    assert.deepEqual(labels(items(m, 'view')), ['Reload']);
+    assert.deepEqual(labels(items(m, 'view')), ['Toggle Sidebar', 'Reload']);
     assert.deepEqual(labels(items(m, 'help')), ['Strand on GitHub', 'Report an Issue…']);
   }
 });

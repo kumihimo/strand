@@ -32,7 +32,10 @@ import {
   waitingOnYou,
   wipBanners,
   wipBars,
-  HEADER_TABS,
+  SIDEBAR_VIEWS,
+  navCount,
+  readSidebarOpen,
+  sidebarToggle,
 } from '../ui/src/lib/views.ts';
 
 const card = (o: Partial<BeadCard>): BeadCard => ({
@@ -354,11 +357,38 @@ test('hasBeadDrag accepts only a drag that carries the cockpit type', () => {
   assert.equal(hasBeadDrag([]), false);
 });
 
-test('AT-7 the header has the four views and no Settings or Setup tab (Settings is in File, Setup inside it)', () => {
-  assert.deepEqual(HEADER_TABS, [
-    ['brief', 'Brief'],
-    ['board', 'Board'],
-    ['epics', 'Epics'],
-    ['review', 'Review queue'],
+test('AT-12 the sidebar lists the four views, and Settings at its foot', () => {
+  assert.deepEqual(SIDEBAR_VIEWS.map((v) => [v.view, v.label, v.place]), [
+    ['brief', 'Brief', 'top'],
+    ['board', 'Board', 'top'],
+    ['epics', 'Epics', 'top'],
+    ['review', 'Review queue', 'top'],
+    ['settings', 'Settings', 'foot'],
   ]);
+});
+
+test('AT-12 the sidebar counts: beads to approve on Board, beads in review on Review queue, none at zero', () => {
+  const counts = { review: 3, approve: 2 };
+  assert.deepEqual(navCount('board', counts), { n: 2, title: '2 to approve' });
+  assert.deepEqual(navCount('review', counts), { n: 3, title: '3 in review' });
+  assert.equal(navCount('brief', counts), undefined);
+  assert.equal(navCount('review', { review: 0, approve: 0 }), undefined);
+  assert.equal(navCount('board', undefined), undefined);
+});
+
+test('AT-12 the sidebar starts collapsed and remembers only an explicit expand', () => {
+  const store = (v: string | null) => ({ getItem: () => v });
+  assert.equal(readSidebarOpen(store(null)), false);
+  assert.equal(readSidebarOpen(store('junk')), false);
+  assert.equal(readSidebarOpen(store('false')), false);
+  assert.equal(readSidebarOpen(store('true')), true);
+  assert.equal(readSidebarOpen({ getItem: () => { throw new Error('blocked'); } }), false);
+});
+
+test('AT-12 the sidebar: a toggle pins or unpins it, a toggle while it is only hover-expanded closes it, a terminal keeps Ctrl+B', () => {
+  assert.deepEqual(sidebarToggle({ pinned: false, peek: false }, true, false), { pinned: true, peek: false });
+  assert.deepEqual(sidebarToggle({ pinned: true, peek: false }, false, false), { pinned: false, peek: false });
+  assert.deepEqual(sidebarToggle({ pinned: false, peek: true }, false, false), { pinned: false, peek: false });
+  assert.deepEqual(sidebarToggle({ pinned: false, peek: false }, true, true), { pinned: false, peek: false });
+  assert.deepEqual(sidebarToggle({ pinned: true, peek: false }, false, true), { pinned: true, peek: false });
 });
