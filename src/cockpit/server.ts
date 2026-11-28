@@ -10,6 +10,7 @@ import type { Model } from './model.ts';
 import { registerActionRoutes, registerReadRoutes } from './routes.ts';
 import { registerTerminalRoutes } from './terminal-routes.ts';
 import { registerQueueRoutes } from './queue-routes.ts';
+import { registerSettingsRoutes } from './settings-routes.ts';
 import type { WorkQueue } from './queue-runner.ts';
 import { MAX_INPUT_BYTES, type Terminals } from './pty.ts';
 import type { TargetOpener } from './open.ts';
@@ -158,6 +159,7 @@ export async function createServer(o: ServerOptions): Promise<FastifyInstance> {
   }
   registerTerminalRoutes(app, o.ctx, o.terminals, o.terminalsUnavailable);
   registerQueueRoutes(app, o.queue);
+  registerSettingsRoutes(app, o.ctx);
   await o.routes?.(app);
   app.get('/api/health', async () => ({ ok: true, version: version() }));
   // A second `strand cockpit` checks that the port in the key file is this process.

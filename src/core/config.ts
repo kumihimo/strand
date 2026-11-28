@@ -199,30 +199,30 @@ function adoptLegacyConfig(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, ho
   copyFileSync(legacy, file);
 }
 
-export function loadConfig(opts: ConfigOptions = {}): Config {
-  const { platform, env, home, file, p } = resolve(opts);
-  adoptLegacyConfig(platform, env, home, file);
-
-  let raw: Record<string, unknown> = {};
-  let text: string | undefined;
+/** The config file's JSON object as written, `{}` when the file is missing. A file that is not a JSON object throws. */
+export function readRawConfig(file: string): Record<string, unknown> {
+  let text: string;
   try {
     text = readFileSync(file, 'utf8');
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw new Error(`Cannot read config file ${file}: ${(e as Error).message}`);
-    }
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return {};
+    throw new Error(`Cannot read config file ${file}: ${(e as Error).message}`);
   }
-  if (text !== undefined) {
-    try {
-      const parsed: unknown = JSON.parse(text);
-      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error('expected a JSON object');
-      }
-      raw = parsed as Record<string, unknown>;
-    } catch (e) {
-      throw new Error(`Malformed config file ${file}: ${(e as Error).message}`);
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('expected a JSON object');
     }
+    return parsed as Record<string, unknown>;
+  } catch (e) {
+    throw new Error(`Malformed config file ${file}: ${(e as Error).message}`);
   }
+}
+
+export function loadConfig(opts: ConfigOptions = {}): Config {
+  const { platform, env, home, file, p } = resolve(opts);
+  adoptLegacyConfig(platform, env, home, file);
+  const raw = readRawConfig(file);
 
   const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
   const defaultRoot = platform === 'win32' ? 'C:\\dev' : p.join(home, 'dev');
