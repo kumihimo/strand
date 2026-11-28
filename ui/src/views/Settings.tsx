@@ -16,7 +16,7 @@ const GROUPS: [string, string[]][] = [
   ['Folders', ['workspaceRoot', 'trackerDir', 'docsRepo']],
   ['Work in progress', ['wip.build', 'wip.review', 'wip.mode']],
   ['Claude Code', ['claudePath', 'claudeModel', 'claudeEffort']],
-  ['Git and forge', ['branchPrefix', 'giteaUrl', 'artefactsVcs']],
+  ['Git and forge', ['branchPrefix', 'giteaUrl', 'artefactsVcs', 'butPath', 'ghPath']],
   ['Cockpit', ['cockpit.window', 'cockpit.maxSessions']],
 ];
 

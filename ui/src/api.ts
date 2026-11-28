@@ -1,5 +1,7 @@
 import type { Board, BeadCard, BeadDetail, Epic } from '../../src/cockpit/model.ts';
 import type { SettingsView } from '../../src/core/settings.ts';
+import type { InstallState, SetupView } from '../../src/cockpit/setup-routes.ts';
+import type { OfferedTool } from '../../src/core/offered.ts';
 import { ApiError, errorFromResponse } from './lib/errors.ts';
 import type { Brief } from '../../src/cli/commands/brief.ts';
 import type { TerminalInfo } from '../../src/cockpit/pty.ts';
@@ -123,3 +125,9 @@ export type Settings = SettingsView & { giteaToken: boolean };
 export const getSettings = () => call<Settings>('/api/settings');
 /** 200 with the saved settings. A 400 throws an ApiError whose `fields` holds a message per refused field; nothing was saved. */
 export const saveSettings = (patch: Record<string, unknown>) => call<Settings>('/api/settings', { method: 'PUT', body: patch });
+
+export type { InstallState, SetupView };
+export const getSetup = () => call<SetupView>('/api/setup');
+/** Start the official installer of a missing tool; `consent` is the ticked box beside its licence (ADR 0029). */
+export const startInstall = (tool: OfferedTool) => call<{ install: InstallState }>('/api/setup/install', { method: 'POST', body: { tool, consent: true } });
+export const getInstall = (tool: OfferedTool) => call<InstallState>(`/api/setup/install/${enc(tool)}`);
