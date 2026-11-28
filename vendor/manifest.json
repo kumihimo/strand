@@ -1,0 +1,74 @@
+{
+  "$comment": "The tools the packaged app carries (ADR 0031). scripts/fetch-vendor.ts downloads each archive at packaging time and refuses any whose SHA256 is not the one pinned here. Bump a pin with its upstream security release.",
+  "tools": {
+    "node": {
+      "name": "Node.js",
+      "version": "24.22.3",
+      "licence": "MIT",
+      "homepage": "https://nodejs.org/",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://nodejs.org/dist/v24.22.3/node-v24.22.3-linux-x64.tar.xz",
+          "sha256": "4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb",
+          "files": { "node": "node-v24.22.3-linux-x64/bin/node", "LICENSE": "node-v24.22.3-linux-x64/LICENSE" }
+        },
+        "win-x64": {
+          "url": "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip",
+          "sha256": "e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f",
+          "files": { "node.exe": "node-v24.22.3-win-x64/node.exe", "LICENSE": "node-v24.22.3-win-x64/LICENSE" }
+        }
+      }
+    },
+    "bd": {
+      "name": "Beads (bd)",
+      "version": "1.2.2",
+      "licence": "MIT",
+      "homepage": "https://github.com/gastownhall/beads",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.2.2/beads_1.2.2_linux_amd64.tar.gz",
+          "sha256": "8140098a51d3b81d5548d1c5e6db1a2d9930e5d141efe2a4bff7d079c4d321e8",
+          "files": { "bd": "bd", "LICENSE": "LICENSE" }
+        },
+        "win-x64": {
+          "url": "https://github.com/gastownhall/beads/releases/download/v1.2.2/beads_1.2.2_windows_amd64.zip",
+          "sha256": "1f00c29cd9599e182a4a4e829f5210daca2da14155920aee2836d8bc613b2feb",
+          "files": { "bd.exe": "bd.exe", "LICENSE": "LICENSE" }
+        }
+      }
+    },
+    "git": {
+      "name": "Git",
+      "version": "2.56.1",
+      "licence": "GPL-2.0-only",
+      "homepage": "https://git-scm.com/",
+      "source": {
+        "git": { "tag": "v2.56.1", "url": "https://github.com/git/git/tree/v2.56.1" },
+        "dugiteNative": { "tag": "v2.56.1", "url": "https://github.com/desktop/dugite-native/tree/v2.56.1" },
+        "gitForWindows": { "tag": "v2.56.1.windows.1", "url": "https://github.com/git-for-windows/git/tree/v2.56.1.windows.1" },
+        "includes": "Git LFS v3.8.1 (MIT) and Git Credential Manager v2.9.1 (MIT), as packaged by dugite-native"
+      },
+      "extras": [
+        {
+          "url": "https://raw.githubusercontent.com/git/git/v2.56.1/COPYING",
+          "sha256": "5b2198d1645f767585e8a88ac0499b04472164c0d2da22e75ecf97ef443ab32e",
+          "to": "COPYING"
+        }
+      ],
+      "platforms": {
+        "linux-x64": {
+          "url": "https://github.com/desktop/dugite-native/releases/download/v2.56.1/dugite-native-v2.56.1-238326e-ubuntu-x64.tar.gz",
+          "sha256": "e5bc3e8e80b57a5bcd8da18d59b23f5b39533d19019ac1d50b0bd34f051d111d",
+          "tree": ".",
+          "check": ["bin/git", "libexec/git-core/git", "etc/gitconfig", "share/git-core/templates", "ssl/cacert.pem"]
+        },
+        "win-x64": {
+          "url": "https://github.com/desktop/dugite-native/releases/download/v2.56.1/dugite-native-v2.56.1-238326e-windows-x64.tar.gz",
+          "sha256": "e9fa2c78952aa2c2154c26dbd4999f93269896e9fc902fa9fe840412d4ffdb04",
+          "tree": ".",
+          "check": ["cmd/git.exe", "ucrt64/libexec/git-core", "etc/gitconfig", "LICENSE.txt"]
+        }
+      }
+    }
+  }
+}
