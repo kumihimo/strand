@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BrowserWindow, Menu, MenuItem, Notification, app, dialog, net, session } from 'electron';
+import { BrowserWindow, Menu, MenuItem, Notification, app, dialog, net, session, shell } from 'electron';
 import {
   READY_TIMEOUT_MS,
   STOP_GRACE_MS,
@@ -23,6 +23,7 @@ import {
   serverCommand,
   serverEnv,
   userDataDir,
+  windowOpenDecision,
   type Ready,
 } from './handoff.ts';
 import { readyMessage, sha256File, startUpdates, type UpdaterLike, type Updates } from './update.ts';
@@ -56,7 +57,12 @@ function createWindow(): BrowserWindow {
     webPreferences: { session: ses, contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false },
   });
   const wc = w.webContents;
-  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // A terminal link: an http(s) URL opens in the default browser; the window itself never opens another.
+  wc.setWindowOpenHandler(({ url }) => {
+    const { action, external } = windowOpenDecision(url);
+    if (external !== undefined) shell.openExternal(external).catch((e: unknown) => console.error(`strand: could not open a link: ${String(e)}`));
+    return { action };
+  });
   const guard = (e: { preventDefault(): void }, url: string) => {
     if (!ready || !navigationAllowed(url, ready.port)) e.preventDefault();
   };

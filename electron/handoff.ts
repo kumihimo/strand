@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { COOKIE_NAME } from '../src/cockpit/auth.ts';
+import { externalUrl } from '../src/core/links.ts';
 
 /**
  * The pure half of the Electron shell (ADR 0022): what the main process accepts from the server child, the
@@ -56,6 +57,15 @@ export function navigationAllowed(url: string, port: number): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * What the window does with a window.open (a terminal link): never open a child window. An http(s) link is
+ * handed to the default browser as `external`; anything else is dropped.
+ */
+export function windowOpenDecision(url: string): { action: 'deny'; external?: string } {
+  const external = externalUrl(url);
+  return external === undefined ? { action: 'deny' } : { action: 'deny', external };
 }
 
 /** Every permission is denied except writing to the clipboard (the terminal's copy). */

@@ -15,6 +15,7 @@ import {
   serverCommand,
   serverEnv,
   userDataDir,
+  windowOpenDecision,
 } from '../electron/handoff.ts';
 
 const KEY = 'a'.repeat(64);
@@ -68,6 +69,28 @@ test('AT-7 navigation is allowed only within the server origin', () => {
   ]) {
     assert.equal(navigationAllowed(url, 4747), false, url);
   }
+});
+
+test('a window.open never opens a window; only an http(s) link goes to the default browser', () => {
+  assert.deepEqual(windowOpenDecision('https://github.com/o/r/pull/1'), { action: 'deny', external: 'https://github.com/o/r/pull/1' });
+  assert.deepEqual(windowOpenDecision('http://example.com'), { action: 'deny', external: 'http://example.com/' });
+  for (const url of [
+    'file:///etc/passwd',
+    'javascript:alert(1)',
+    'data:text/html,hi',
+    'vscode://file/x',
+    'about:blank',
+    'https://user:pw@example.com/',
+    'not a url',
+    '',
+  ]) {
+    assert.deepEqual(windowOpenDecision(url), { action: 'deny' }, url);
+  }
+});
+
+test('an external link never becomes a navigation of the cockpit window', () => {
+  assert.equal(navigationAllowed('https://github.com/o/r/pull/1', 4747), false);
+  assert.equal(navigationAllowed('http://example.com/', 4747), false);
 });
 
 test('AT-7 permissions are denied except clipboard write', () => {

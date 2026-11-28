@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import '@xterm/xterm/css/xterm.css';
 import { terminalSocketUrl } from '../api.ts';
 import { Button } from './ui/button.tsx';
@@ -10,6 +11,7 @@ import {
   encodeInput,
   encodeResize,
   isLeaveChord,
+  openTerminalLink,
   parseServerText,
   pushInput,
   terminalFont,
@@ -37,9 +39,21 @@ function attach(el: HTMLElement, tid: string, hooks: Hooks): () => void {
   // The --term-* tokens are set on the host (.termhost), so read them there.
   const css = getComputedStyle(el);
   const token = (name: string) => css.getPropertyValue(name).trim();
-  const term = new Terminal({ fontFamily: terminalFont(token), fontSize: 13, theme: terminalTheme(token), cursorBlink: true, scrollback: 5000 });
+  // Links: plain-text URLs (the web-links addon) and OSC 8 hyperlinks (linkHandler) share one http(s)-only rule.
+  const openLink = (_e: MouseEvent, uri: string) => {
+    openTerminalLink(uri, (url, target, features) => window.open(url, target, features));
+  };
+  const term = new Terminal({
+    fontFamily: terminalFont(token),
+    fontSize: 13,
+    theme: terminalTheme(token),
+    cursorBlink: true,
+    scrollback: 5000,
+    linkHandler: { activate: openLink, allowNonHttpProtocols: false },
+  });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  term.loadAddon(new WebLinksAddon(openLink));
   term.open(el);
   // Tab and Escape belong to the program, so one chord leaves the terminal. It is not sent to it.
   term.attachCustomKeyEventHandler((e) => {
