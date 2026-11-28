@@ -40,7 +40,8 @@ test('the release key is packaged into the app, for the updater to verify SHA256
   assert.ok(build.files.includes('RELEASE-KEY.asc'));
 });
 
-const workflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
+// A Windows checkout may turn LF into CRLF; the job splitter below works on LF.
+const workflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8').replace(/\r\n/g, '\n');
 const job = (name: string) => {
   const start = workflow.indexOf(`\n  ${name}:\n`);
   assert.ok(start >= 0, `job ${name}`);
