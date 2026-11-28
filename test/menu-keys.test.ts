@@ -81,3 +81,8 @@ test('platformOf reads the user agent', () => {
   assert.equal(platformOf('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Electron/45.5.0'), 'darwin');
   assert.equal(platformOf('Mozilla/5.0 (X11; Linux x86_64) Electron/45.5.0'), 'linux');
 });
+
+test('AT-12 Ctrl+B is left to the sidebar, which ignores it in a terminal (no double toggle)', () => {
+  assert.equal(menuKey(ctrl('KeyB'), at()), undefined);
+  assert.equal(menuKey(ctrl('KeyB'), at({ inTerminal: true })), undefined);
+});

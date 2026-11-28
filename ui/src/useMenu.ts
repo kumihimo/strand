@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { menuKey, platformOf } from './lib/menu-keys.ts';
 import { ISSUES_URL, REPO_URL, appMenus, isMainAction, type MenuAction, type MenuDef, type MenuId, type Platform } from './lib/menubar.ts';
 
-type Handlers = { newBead: () => void; sessions: () => void };
+type Handlers = { newBead: () => void; sessions: () => void; toggleSidebar: () => void };
 
 export type Menu = {
   menus: MenuDef[];
@@ -37,6 +37,8 @@ export function useMenu(h: Handlers): Menu {
           return handlers.current.newBead();
         case 'sessions':
           return handlers.current.sessions();
+        case 'toggle-sidebar':
+          return handlers.current.toggleSidebar();
         case 'settings':
           location.hash = '#/settings';
           return;

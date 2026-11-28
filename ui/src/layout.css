@@ -8,24 +8,35 @@ body { height: 100vh; }
 .spacer { flex: 1; }
 main { flex: 1; overflow: auto; padding: 14px 16px; }
 
+/* Title bar on top, then the sidebar (VS Code style, collapsed to icons by default) beside the page. The sidebar
+   is fixed below the title bar, so the title bar has a set height (--header-height). */
+:root { --header-height: 45px; }
+.appbody { display: flex; flex: 1; min-height: 0; }
+.appcol { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.navdot { display: none; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 9999px; background: var(--primary); pointer-events: none; }
+[data-collapsible="icon"] .navdot { display: block; }
+/* Hover-expanded (not pinned): the sidebar opens over the page, which keeps its place. */
+.peek [data-slot="sidebar-gap"] { width: var(--sidebar-width-icon); }
+.peek [data-slot="sidebar-container"] { box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); }
+
 /* header: one line; below 900 px the Sessions button drops its word and keeps the count */
-.appbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--border); background: var(--card); min-width: 0; }
+.appbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; height: var(--header-height); box-sizing: border-box; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--card); min-width: 0; }
 .appbar > * { flex: none; }
-.appbar nav { display: flex; gap: 2px; min-width: 0; overflow-x: auto; flex: 0 1 auto; }
 .appbar .spacer { flex: 1 1 0; }
 .appbar .appicon { width: 20px; height: 20px; }
 
 /* Desktop app (ADR 0030): no OS title bar, so the header is the title bar. It drags the window; its controls do
    not. Windows and Linux draw their window buttons over the right end (titleBarOverlay); macOS's traffic lights
    sit at the left. 44px matches the overlay height set in electron/main.ts. */
-html[data-desktop] .appbar { min-height: 44px; padding-top: 0; padding-bottom: 0; app-region: drag; -webkit-app-region: drag; user-select: none; }
+html[data-desktop] { --header-height: 44px; }
+html[data-desktop] .appbar { app-region: drag; -webkit-app-region: drag; user-select: none; }
 html[data-desktop] .appbar :is(button, a, input, select, [role="menubar"], [role="menuitem"]) { app-region: no-drag; -webkit-app-region: no-drag; }
 html[data-desktop="win32"] .appbar, html[data-desktop="linux"] .appbar {
   padding-right: max(14px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 150px))));
 }
 html[data-desktop="darwin"] .appbar { padding-left: 80px; }
 @media (max-width: 900px) {
-  .appbar { gap: 6px; padding: 6px 8px; }
+  .appbar { gap: 6px; padding-left: 8px; }
   .sessbtn.has .sesslabel { display: none; }
 }
 

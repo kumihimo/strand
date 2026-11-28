@@ -11,7 +11,7 @@ import { acceptResult } from './lib/detail.ts';
 import { layoutClasses } from './lib/drawer.ts';
 import { liveBeadIds, withTerminal } from './lib/terminal.ts';
 import { useDrawers } from './useDrawers.ts';
-import { HEADER_TABS, headerCounts } from './lib/views.ts';
+import { SIDEBAR_KEY, headerCounts, readSidebarOpen, sidebarToggle } from './lib/views.ts';
 import { useUnloadGuard } from './useUnloadGuard.ts';
 import { useRoute } from './useRoute.ts';
 import { usePoll } from './usePoll.ts';
@@ -25,6 +25,8 @@ import { landOnSetup, SETUP_HASH, SKIP_KEY } from './lib/setup.ts';
 import { AppMenubar } from './components/AppMenubar.tsx';
 import iconUrl from '../../electron/icon.png';
 import { useMenu } from './useMenu.ts';
+import { AppSidebar } from './components/AppSidebar.tsx';
+import { SidebarProvider, SidebarTrigger } from './components/ui/sidebar.tsx';
 
 
 /** Matches the views' poll and the server's 15 s cache TTL. */
@@ -147,59 +149,79 @@ export function App() {
   const [sessionsRequest, setSessionsRequest] = useState(0);
   const openRef = useRef(open);
   openRef.current = open;
+  // The sidebar: collapsed by default, pinned open by its toggle (remembered per viewer), and expanded over the
+  // page while the pointer is on it (peek). Its own Ctrl+B is ignored in a terminal (back one character, tmux).
+  const [sidebarOpen, setSidebarOpenState] = useState(readSidebarOpen);
+  const [peek, setPeek] = useState(false);
+  const setSidebarOpen = useCallback((v: boolean) => {
+    setSidebarOpenState(v);
+    try {
+      localStorage.setItem(SIDEBAR_KEY, String(v));
+    } catch {
+      // Not remembered, still applied.
+    }
+  }, []);
+  const onSidebarChange = useCallback(
+    (v: boolean) => {
+      const next = sidebarToggle({ pinned: sidebarOpen, peek }, v, !!document.activeElement?.closest('.xterm'));
+      setPeek(next.peek);
+      if (next.pinned !== sidebarOpen) setSidebarOpen(next.pinned);
+    },
+    [sidebarOpen, peek, setSidebarOpen],
+  );
+  const sidebarRef = useRef(sidebarOpen);
+  sidebarRef.current = sidebarOpen;
   const menu = useMenu({
     newBead: () => !dialogOpen.current && openRef.current(),
     sessions: () => setSessionsRequest((n) => n + 1),
+    toggleSidebar: () => setSidebarOpen(!sidebarRef.current),
   });
 
   return (
     <TooltipProvider delayDuration={300}>
-      <header className="appbar">
-        <img src={iconUrl} alt="" aria-hidden className="appicon" />
-        <h1 className="sr-only">Strand</h1>
-        <AppMenubar menus={menu.menus} open={menu.open} onOpenChange={menu.setOpen} onAction={menu.run} />
-        <nav aria-label="Views">
-          {HEADER_TABS.map(([view, label]) => (
-            <Button key={view} asChild variant={route.view === view ? 'secondary' : 'ghost'} size="sm" className={route.view === view ? 'font-semibold' : 'text-muted-foreground'}>
-              <a href={`#/${view}`} aria-current={route.view === view ? 'page' : undefined}>
-                {label}
-                {view === 'review' && counts ? ` (${counts.review})` : ''}
-                {view === 'board' && counts && counts.approve > 0 ? ` (${counts.approve} to approve)` : ''}
-              </a>
-            </Button>
-          ))}
-        </nav>
-        <span className="spacer" />
-        <SessionsMenu list={terminals} failed={terminalsFailed} cards={cards} onOpen={openSession} buttonRef={sessionsBtn} openRequest={sessionsRequest} />
-        <Button ref={newBtn} type="button" onClick={open} aria-haspopup="dialog">+ New bead</Button>
-      </header>
-      {error && (
-        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0 px-3.5">
-          <AlertDescription className="text-destructive">{error}</AlertDescription>
-          <AlertAction className="top-1">
-            <Button variant="outline" size="sm" type="button" onClick={() => setError(undefined)}>Dismiss</Button>
-          </AlertAction>
-        </Alert>
-      )}
-      <main className={route.view === 'board' ? ['boardview', ...(route.beadId ? layoutClasses(drawers, true) : ['nosel'])].join(' ') : undefined}>
-        {route.view === 'brief' && <BriefView onError={onError} />}
-        {route.view === 'board' && (
-          <Board
-            selected={route.beadId}
-            onError={onError}
-            terminals={terminals}
-            onTerminalsChanged={refreshTerminals}
-            onTerminalStarted={terminalStarted}
-            drawers={drawers}
-            onToggleDrawer={toggleDrawer}
-            onExpandForSession={expandForSession}
-            onEditDirty={setEditDirty}
-          />
-        )}
-        {route.view === 'epics' && <EpicsView selected={route.epicId} onError={onError} />}
-        {route.view === 'review' && <ReviewView onError={onError} />}
-        {route.view === 'settings' && <SettingsView onError={onError} />}
-      </main>
+      <SidebarProvider open={sidebarOpen || peek} onOpenChange={onSidebarChange} className={peek && !sidebarOpen ? 'peek min-h-0 flex-1 flex-col' : 'min-h-0 flex-1 flex-col'}>
+        <header className="appbar">
+          <img src={iconUrl} alt="" aria-hidden className="appicon" />
+          <h1 className="sr-only">Strand</h1>
+          <AppMenubar menus={menu.menus} open={menu.open} onOpenChange={menu.setOpen} onAction={menu.run} />
+          <span className="spacer" />
+          <SessionsMenu list={terminals} failed={terminalsFailed} cards={cards} onOpen={openSession} buttonRef={sessionsBtn} openRequest={sessionsRequest} />
+          <Button ref={newBtn} type="button" onClick={open} aria-haspopup="dialog">+ New bead</Button>
+          <SidebarTrigger title="Toggle sidebar" />
+        </header>
+        <div className="appbody">
+          <AppSidebar current={route.view} counts={counts} onPeek={setPeek} />
+          <div className="appcol">
+            {error && (
+              <Alert variant="destructive" className="rounded-none border-x-0 border-t-0 px-3.5">
+                <AlertDescription className="text-destructive">{error}</AlertDescription>
+                <AlertAction className="top-1">
+                  <Button variant="outline" size="sm" type="button" onClick={() => setError(undefined)}>Dismiss</Button>
+                </AlertAction>
+              </Alert>
+            )}
+            <main className={route.view === 'board' ? ['boardview', ...(route.beadId ? layoutClasses(drawers, true) : ['nosel'])].join(' ') : undefined}>
+              {route.view === 'brief' && <BriefView onError={onError} />}
+              {route.view === 'board' && (
+                <Board
+                  selected={route.beadId}
+                  onError={onError}
+                  terminals={terminals}
+                  onTerminalsChanged={refreshTerminals}
+                  onTerminalStarted={terminalStarted}
+                  drawers={drawers}
+                  onToggleDrawer={toggleDrawer}
+                  onExpandForSession={expandForSession}
+                  onEditDirty={setEditDirty}
+                />
+              )}
+              {route.view === 'epics' && <EpicsView selected={route.epicId} onError={onError} />}
+              {route.view === 'review' && <ReviewView onError={onError} />}
+              {route.view === 'settings' && <SettingsView onError={onError} />}
+            </main>
+          </div>
+        </div>
+      </SidebarProvider>
       {creating && <NewBead onClose={close} onCreated={created} />}
     </TooltipProvider>
   );

@@ -1,5 +1,6 @@
 {
   "name": "strand",
+  "desktopName": "strand.desktop",
   "version": "0.1.2",
   "description": "An LLM-assisted SDLC for one engineer: a CLI, a Claude Code plugin and a local cockpit over Beads.",
   "license": "Apache-2.0",

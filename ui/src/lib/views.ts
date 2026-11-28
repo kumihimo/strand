@@ -10,13 +10,44 @@ const byPriority = (a: { priority: number; id: string }, b: { priority: number; 
 
 /* ---------- brief ---------- */
 
-/** The header's view tabs. Settings (with Setup as its Tools section) is in the menu bar's File menu. */
-export const HEADER_TABS = [
-  ['brief', 'Brief'],
-  ['board', 'Board'],
-  ['epics', 'Epics'],
-  ['review', 'Review queue'],
+/** The sidebar's views (ADR 0030): VS Code style, collapsed to icons by default. Settings sits at its foot. */
+export const SIDEBAR_VIEWS = [
+  { view: 'brief', label: 'Brief', place: 'top' },
+  { view: 'board', label: 'Board', place: 'top' },
+  { view: 'epics', label: 'Epics', place: 'top' },
+  { view: 'review', label: 'Review queue', place: 'top' },
+  { view: 'settings', label: 'Settings', place: 'foot' },
 ] as const;
+export type SidebarView = (typeof SIDEBAR_VIEWS)[number]['view'];
+
+/** The count a sidebar view shows: beads to approve on Board, beads in review on Review queue. None at zero. */
+export function navCount(view: SidebarView, counts: { review: number; approve: number } | undefined): { n: number; title: string } | undefined {
+  if (!counts) return undefined;
+  if (view === 'board' && counts.approve > 0) return { n: counts.approve, title: `${counts.approve} to approve` };
+  if (view === 'review' && counts.review > 0) return { n: counts.review, title: `${counts.review} in review` };
+  return undefined;
+}
+
+/**
+ * The sidebar is pinned open (the toggle, remembered) or only expanded while the pointer is over it (peek). A
+ * toggle in a terminal is ignored: Ctrl+B is the shell's there. A toggle while only peeking closes it.
+ */
+export function sidebarToggle(s: { pinned: boolean; peek: boolean }, open: boolean, inTerminal: boolean): { pinned: boolean; peek: boolean } {
+  if (inTerminal) return s;
+  if (s.peek && !s.pinned && !open) return { pinned: false, peek: false };
+  return { pinned: open, peek: false };
+}
+
+export const SIDEBAR_KEY = 'strand.sidebar.open';
+
+/** Collapsed unless the viewer expanded it last time. Storage can throw (private window, blocked site data). */
+export function readSidebarOpen(storage?: Pick<Storage, 'getItem'>): boolean {
+  try {
+    return (storage ?? localStorage).getItem(SIDEBAR_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
 
 export type WaitingItem = { id: string; title: string; priority?: number };
 export type Waiting = { approve: WaitingItem[]; review: WaitingItem[]; total: number };
