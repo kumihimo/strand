@@ -1,0 +1,47 @@
+# Dependency updates. A release must age before Dependabot offers it (3 days for a patch, 14 for a minor, 30 for
+# a major), so a bad or compromised release is usually caught first. Updates come grouped, and
+# dependabot-automerge.yml turns on auto-merge, so a PR merges once the required CI checks pass.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 3
+      semver-patch-days: 3
+      semver-minor-days: 14
+      semver-major-days: 30
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+    ignore:
+      # Pinned exactly: an upgrade needs a manual check of the private fields the terminal adapter uses (ADR 0017).
+      - dependency-name: "node-pty"
+      # A major sets the desktop app's Node version; upgrade it by hand.
+      - dependency-name: "electron"
+        update-types:
+          - "version-update:semver-major"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 3
+      semver-patch-days: 3
+      semver-minor-days: 14
+      semver-major-days: 30
+    groups:
+      actions:
+        patterns:
+          - "*"
