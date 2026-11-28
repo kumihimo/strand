@@ -20,12 +20,14 @@ import { Board, focusTerminalOf } from './views/Board.tsx';
 import { BriefView } from './views/Brief.tsx';
 import { EpicsView } from './views/Epics.tsx';
 import { ReviewView } from './views/Review.tsx';
+import { SettingsView } from './views/Settings.tsx';
 
 const TABS = [
   ['brief', 'Brief'],
   ['board', 'Board'],
   ['epics', 'Epics'],
   ['review', 'Review queue'],
+  ['settings', 'Settings'],
 ] as const;
 
 /** Matches the views' poll and the server's 15 s cache TTL. */
@@ -170,6 +172,7 @@ export function App() {
         )}
         {route.view === 'epics' && <EpicsView selected={route.epicId} onError={onError} />}
         {route.view === 'review' && <ReviewView onError={onError} />}
+        {route.view === 'settings' && <SettingsView onError={onError} />}
       </main>
       {creating && <NewBead onClose={close} onCreated={created} />}
     </TooltipProvider>

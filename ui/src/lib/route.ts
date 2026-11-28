@@ -1,4 +1,4 @@
-export type Route = { view: 'brief' | 'board' | 'epics' | 'review'; beadId?: string; epicId?: string };
+export type Route = { view: 'brief' | 'board' | 'epics' | 'review' | 'settings'; beadId?: string; epicId?: string };
 
 function safeDecode(s: string): string {
   try {
@@ -13,6 +13,7 @@ export function parseRoute(hash: string): Route {
   if (view === 'board') return id ? { view, beadId: safeDecode(id) } : { view };
   if (view === 'epics') return id ? { view, epicId: safeDecode(id) } : { view };
   if (view === 'review') return { view };
+  if (view === 'settings') return { view };
   return { view: 'brief' };
 }
 

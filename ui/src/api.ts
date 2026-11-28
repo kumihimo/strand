@@ -1,4 +1,5 @@
 import type { Board, BeadCard, BeadDetail, Epic } from '../../src/cockpit/model.ts';
+import type { SettingsView } from '../../src/core/settings.ts';
 import { ApiError, errorFromResponse } from './lib/errors.ts';
 import type { Brief } from '../../src/cli/commands/brief.ts';
 import type { TerminalInfo } from '../../src/cockpit/pty.ts';
@@ -117,3 +118,8 @@ export const addToQueue = (ids: string[]) => call<{ ids: string[] }>('/api/queue
 export const setQueueOrder = (ids: string[]) => call<{ ids: string[] }>('/api/queue', { method: 'PUT', body: { ids } });
 export const removeFromQueue = (id: string) => call<{ ids: string[] }>(`/api/queue/${enc(id)}`, { method: 'DELETE' });
 export const artefactUrl = (id: string, rel: string) => `/api/beads/${enc(id)}/artefact?rel=${enc(rel)}`;
+
+export type Settings = SettingsView & { giteaToken: boolean };
+export const getSettings = () => call<Settings>('/api/settings');
+/** 200 with the saved settings. A 400 throws an ApiError whose `fields` holds a message per refused field; nothing was saved. */
+export const saveSettings = (patch: Record<string, unknown>) => call<Settings>('/api/settings', { method: 'PUT', body: patch });
