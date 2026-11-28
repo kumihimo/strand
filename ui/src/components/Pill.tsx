@@ -1,30 +1,48 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import type { BeadCard } from '../../../src/cockpit/model.ts';
-import { extraPills, statusPill } from '../lib/format.ts';
+import { extraPills, statusPill, type StatusPillText } from '../lib/format.ts';
+import { Badge } from './ui/badge.tsx';
 
-export function Pill({ className, title, children }: { className?: string; title?: string; children: ReactNode }) {
+type Variant = NonNullable<ComponentProps<typeof Badge>['variant']>;
+
+/** A small label. The default is a muted outline; `variant` picks a palette colour. */
+export function Pill({ variant = 'muted', className, title, children }: { variant?: Variant; className?: string; title?: string; children: ReactNode }) {
   return (
-    <span className={`pill${className ? ` ${className}` : ''}`} title={title}>
+    <Badge variant={variant} className={className} title={title}>
       {children}
-    </span>
+    </Badge>
   );
 }
 
+const PRIORITY: Record<number, Variant> = { 0: 'red-solid', 1: 'red', 2: 'amber' };
+
 export function PriorityPill({ priority }: { priority: number }) {
-  return <Pill className={`p${priority}`}>P{priority}</Pill>;
+  return <Pill variant={PRIORITY[priority] ?? 'muted'}>P{priority}</Pill>;
 }
+
+const STATUS: Record<StatusPillText, Variant> = {
+  closed: 'muted',
+  'on hold': 'amber',
+  blocked: 'red',
+  'awaiting approval': 'amber',
+  ready: 'green',
+  'in progress': 'blue',
+};
 
 export function StatusPill({ card }: { card: BeadCard }) {
   const s = statusPill(card);
-  return <Pill className={`st-${s.replace(' ', '-')}`}>{s}</Pill>;
+  return <Pill variant={STATUS[s]}>{s}</Pill>;
 }
+
+/** Extra pills name their colour by the old class; this maps it to a Badge variant. */
+const EXTRA: Record<string, Variant> = { 'st-ci-unknown': 'amber' };
 
 /** Pills beyond the status one, such as "CI unknown". */
 export function ExtraPills({ card }: { card: BeadCard }) {
   return (
     <>
       {extraPills(card).map((p) => (
-        <Pill key={p.label} className={p.className} title={p.title}>
+        <Pill key={p.label} variant={EXTRA[p.className] ?? 'muted'} title={p.title}>
           {p.label}
         </Pill>
       ))}

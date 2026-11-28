@@ -1,0 +1,98 @@
+/*
+ * Layout only. Colours come from the shadcn theme tokens in index.css (--border, --card, --muted, ...) or from
+ * Tailwind classes in the markup; controls are the shadcn components in components/ui/. The terminal keeps its own
+ * colours (--term-*), read by TerminalPane from its host element.
+ */
+body { height: 100vh; }
+#root { height: 100%; display: flex; flex-direction: column; }
+.spacer { flex: 1; }
+main { flex: 1; overflow: auto; padding: 14px 16px; }
+
+/* header: one line; below 900 px the Sessions button drops its word and keeps the count */
+.appbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 10px; padding: 6px 14px; border-bottom: 1px solid var(--border); background: var(--card); min-width: 0; }
+.appbar > * { flex: none; }
+.appbar nav { display: flex; gap: 2px; min-width: 0; overflow-x: auto; flex: 0 1 auto; }
+.appbar .spacer { flex: 1 1 0; }
+@media (max-width: 900px) {
+  .appbar { gap: 6px; padding: 6px 8px; }
+  .sessbtn.has .sesslabel { display: none; }
+}
+
+/* board view: board on top, detail below */
+main.boardview { padding: 0; overflow: hidden; display: grid; grid-template-rows: minmax(200px, 40%) minmax(0, 1fr); min-height: 0; }
+main.boardview.nosel { grid-template-rows: minmax(0, 1fr) auto; }
+main.boardview.nosel .detail.empty { padding: 6px 14px; }
+main.boardview.panel-off { grid-template-rows: minmax(0, 1fr) auto; }
+@media (min-width: 901px) {
+  main.boardview.panel-wide { grid-template-rows: minmax(0, 20%) minmax(0, 1fr); }
+}
+.boardpane { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.board { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; padding: 10px 14px; overflow: auto; border-bottom: 1px solid var(--border); background: var(--muted); }
+.boardpane .board { flex: 1; min-height: 0; }
+.col { min-width: 0; }
+.col.drop-ok { outline: 2px dashed var(--ring); outline-offset: 2px; border-radius: 8px; }
+.col.drop-no { outline: 2px dashed var(--border); outline-offset: 2px; border-radius: 8px; }
+.col .dropmsg:empty { margin: 0; }
+.dragging { opacity: .5; }
+a[draggable="true"] { cursor: grab; }
+
+/* sort and filter toolbar */
+.vtools { position: relative; z-index: 3; padding: 6px 14px; border-bottom: 1px solid var(--border); background: var(--card); }
+.vrow { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+.vtools.compact .vrow { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+.vtools.compact .vrow > :not(.spacer) { flex: none; }
+main > section > .vtools { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; padding: 6px 10px; }
+
+/* detail */
+.detail { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; }
+.detail.empty { display: flex; align-items: center; justify-content: center; }
+.panelbar { display: flex; align-items: center; gap: 8px; padding: 3px 14px; border-bottom: 1px solid var(--border); background: var(--card); min-width: 0; }
+.panelbar > * { flex: none; }
+.panelbar .pbtitle { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panelbar .spacer { flex: 1 1 0; }
+.pbody { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: 0; min-width: 0; }
+/* The hidden parts stay mounted (the terminal keeps its socket and scrollback). */
+.pbody.pcol { height: 0; overflow: hidden; visibility: hidden; }
+.pbody.dcol { grid-template-columns: 40px minmax(0, 1fr); }
+.pbody.dcol .left { display: none; }
+.strip { display: none; }
+.pbody.dcol .strip { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px 0; background: var(--card); border-right: 1px solid var(--border); min-height: 0; overflow: hidden; }
+.strip .stripid { writing-mode: vertical-rl; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 0; }
+.left { display: flex; flex-direction: column; min-height: 0; border-right: 1px solid var(--border); }
+.tabbar { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); padding: 0 14px; }
+.dbody { padding: 6px 14px; overflow: auto; flex: 1; min-height: 0; }
+
+/* session pane and terminal */
+.session { padding: 12px 14px; overflow: auto; background: var(--muted); min-height: 0; }
+.termhost {
+  --term-bg: #0f1115; --term-text: #e6e9ef; --term-accent: #7aa2ff;
+  --term-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  height: min(60vh, 520px); min-height: 240px; padding: 6px; overflow: hidden;
+  background: var(--term-bg); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.termhost:focus-within { border-color: var(--ring); }
+
+/* artefacts */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.thumb { height: 86px; position: relative; display: flex; align-items: center; justify-content: center; background: var(--muted); border-bottom: 1px solid var(--border); overflow: hidden; }
+.thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.preview-body { height: 220px; display: flex; align-items: center; justify-content: center; background: var(--muted); }
+.preview-body img { max-width: 100%; max-height: 100%; object-fit: contain; image-rendering: pixelated; }
+.preview-body iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+
+/* brief and epics grids */
+.briefgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.epics { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; min-height: 0; }
+
+@media (max-width: 900px) {
+  main.boardview { overflow: auto; display: block; }
+  .board { grid-template-columns: repeat(7, minmax(170px, 1fr)); max-height: 60vh; }
+  main.boardview.nosel { display: grid; overflow: hidden; }
+  main.boardview.nosel .board { max-height: none; }
+  .pbody, .pbody.dcol { grid-template-columns: minmax(0, 1fr); }
+  .left { border-right: 0; border-bottom: 1px solid var(--border); }
+  /* a collapsed details drawer is a one-line bar above the terminal */
+  .pbody.dcol .strip { flex-direction: row; padding: 4px 14px; border-right: 0; border-bottom: 1px solid var(--border); justify-content: flex-start; }
+  .strip .stripid { writing-mode: horizontal-tb; }
+  .epics { grid-template-columns: minmax(0, 1fr); }
+}

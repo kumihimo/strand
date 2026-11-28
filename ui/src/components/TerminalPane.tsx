@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { terminalSocketUrl } from '../api.ts';
+import { Button } from './ui/button.tsx';
 import {
   chunkInput,
   clampSize,
@@ -33,7 +34,8 @@ type Hooks = { status: (s: Status) => void; ended: () => void; leave: () => void
  * so the screen is reset when a socket opens. Keys typed while connecting are held (64 KB) and sent in order on open.
  */
 function attach(el: HTMLElement, tid: string, hooks: Hooks): () => void {
-  const css = getComputedStyle(document.documentElement);
+  // The --term-* tokens are set on the host (.termhost), so read them there.
+  const css = getComputedStyle(el);
   const token = (name: string) => css.getPropertyValue(name).trim();
   const term = new Terminal({ fontFamily: terminalFont(token), fontSize: 13, theme: terminalTheme(token), cursorBlink: true, scrollback: 5000 });
   const fit = new FitAddon();
@@ -200,20 +202,20 @@ export function TerminalPane({ terminalId, label, focus, onEnded, onLeave }: P) 
   }, [terminalId, attempt]);
 
   return (
-    <div className="termpane">
+    <div className="mt-1 mb-2.5">
       <div ref={host} className="termhost" role="group" aria-label={label} />
-      <div className="termstatus" role="status">
-        {status.kind === 'connecting' && <span className="mu">Connecting… keys you type now are held and sent when it connects.</span>}
-        {status.kind === 'ended' && <span className="mu">{status.code === undefined ? 'Session ended' : `Session ended (code ${status.code})`}</span>}
-        {status.kind === 'gone' && <span className="wa">This terminal is gone.</span>}
+      <div className="mt-1 flex min-h-[22px] items-center gap-2 text-xs" role="status">
+        {status.kind === 'connecting' && <span className="text-muted-foreground">Connecting… keys you type now are held and sent when it connects.</span>}
+        {status.kind === 'ended' && <span className="text-muted-foreground">{status.code === undefined ? 'Session ended' : `Session ended (code ${status.code})`}</span>}
+        {status.kind === 'gone' && <span className="text-amber-700">This terminal is gone.</span>}
         {status.kind === 'lost' && (
           <>
-            <span className="ko">Connection lost</span>
-            <button type="button" className="sbtn" onClick={() => setAttempt((a) => a + 1)}>Reconnect</button>
+            <span className="text-destructive">Connection lost</span>
+            <Button type="button" variant="outline" size="xs" onClick={() => setAttempt((a) => a + 1)}>Reconnect</Button>
           </>
         )}
       </div>
-      <p className="mu small termhint">Ctrl+Shift+F6 leaves the terminal.</p>
+      <p className="text-xs text-muted-foreground">Ctrl+Shift+F6 leaves the terminal.</p>
     </div>
   );
 }

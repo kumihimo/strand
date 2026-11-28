@@ -1,4 +1,5 @@
-import { Suspense, lazy, useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { Suspense, lazy, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { cn } from 'cn';
 import { createPortal } from 'react-dom';
 import type { BeadCard, BeadDetail as Detail } from '../../../src/cockpit/model.ts';
 import type { TerminalInfo } from '../../../src/cockpit/pty.ts';
@@ -10,7 +11,13 @@ import { EditBead, type EditOutcome } from '../components/EditBead.tsx';
 import { ExtraPills, Pill, PriorityPill, StatusPill } from '../components/Pill.tsx';
 import { PrButton } from '../components/PrButton.tsx';
 import { RelationChips } from '../components/RelationChips.tsx';
-import { Tabs, tabPanelProps } from '../components/Tabs.tsx';
+import { SessionLight } from '../components/SessionLight.tsx';
+import { FieldError, FieldLabel } from '../components/form.tsx';
+import { Button } from '../components/ui/button.tsx';
+import { NativeSelect, NativeSelectOption } from '../components/ui/native-select.tsx';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs.tsx';
+import { Textarea } from '../components/ui/textarea.tsx';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.tsx';
 import {
   DESCRIPTION_LINES,
   DESIGN_LINES,
@@ -112,14 +119,14 @@ export function BeadDetail({ id, cards, terminals, onTerminalsChanged, onTermina
   if (!data || data.id !== id) {
     return failed === id ? (
       <section className="detail empty" role="alert">
-        <p className="ko">
+        <p className="text-destructive">
           Could not load {id}.{' '}
-          <button type="button" className="sbtn" onClick={reload}>Retry</button>
+          <Button type="button" variant="outline" size="xs" onClick={reload}>Retry</Button>
         </p>
       </section>
     ) : (
       <section className="detail empty" aria-busy="true">
-        <p className="none">Loading {id}…</p>
+        <p className="text-xs text-muted-foreground">Loading {id}…</p>
       </section>
     );
   }
@@ -131,73 +138,82 @@ export function BeadDetail({ id, cards, terminals, onTerminalsChanged, onTermina
   return (
     <section className="detail" aria-label={`Bead ${id}`}>
       <div className="panelbar">
-        <span className="mono pbid">{data.id}</span>
-        <span className="pbtitle" title={data.title}>{data.title}</span>
+        <span className="font-mono text-xs">{data.id}</span>
+        <span className="pbtitle text-xs font-medium" title={data.title}>{data.title}</span>
         <Pill>stage: {stageLabel(data.stage)}</Pill>
-        {termOpen && <span className="live term" role="img" title="Terminal open" aria-label="Terminal open" />}
+        {termOpen && <SessionLight state="terminal" label="Terminal open" />}
         <span className="spacer" />
         {data.pr && <PrButton pr={data.pr} label="Open PR" onError={onError} />}
         {!drawers.panel && !drawers.details && (
-          <button ref={hideBtn} type="button" className="sbtn" aria-expanded aria-controls={leftId} onClick={() => toggleDrawer('details')}>
+          <Button ref={hideBtn} type="button" variant="outline" size="xs" aria-expanded aria-controls={leftId} onClick={() => toggleDrawer('details')}>
             Hide details
-          </button>
+          </Button>
         )}
         {/* Hide details gives the session the width. This gives the drawer the height. */}
         {!drawers.panel && (
-          <button
-            type="button"
-            className="sbtn"
-            aria-pressed={drawers.wide}
-            title={drawers.wide ? 'Give the board its normal height back' : 'Give this drawer 80% of the view'}
-            onClick={() => toggleDrawer('wide')}
-          >
-            {drawers.wide ? 'Shrink' : 'Expand'}
-          </button>
+          <Hint text={drawers.wide ? 'Give the board its normal height back' : 'Give this drawer 80% of the view'}>
+            <Button type="button" variant="outline" size="xs" aria-pressed={drawers.wide} onClick={() => toggleDrawer('wide')}>
+              {drawers.wide ? 'Shrink' : 'Expand'}
+            </Button>
+          </Hint>
         )}
-        <button ref={panelBtn} type="button" className="sbtn" aria-expanded={!drawers.panel} aria-controls={bodyId} onClick={() => toggleDrawer('panel')}>
+        <Button ref={panelBtn} type="button" variant="outline" size="xs" aria-expanded={!drawers.panel} aria-controls={bodyId} onClick={() => toggleDrawer('panel')}>
           {drawers.panel ? 'Expand' : 'Collapse'}
-        </button>
+        </Button>
       </div>
       <div id={bodyId} ref={bodyEl} className={`pbody${drawers.details ? ' dcol' : ''}${drawers.panel ? ' pcol' : ''}`} inert={drawers.panel}>
         {drawers.details && (
           <div className="strip">
-            <button ref={showBtn} type="button" className="sbtn" aria-expanded={false} aria-controls={leftId} aria-label="Show details" title="Show details" onClick={() => toggleDrawer('details')}>
-              ›
-            </button>
-            <span className="mono stripid">{data.id}</span>
-            {dirty && <span className="live dirty" role="img" title="Unsaved edits" aria-label="Unsaved edits" />}
+            <Hint text="Show details" side="right">
+              <Button ref={showBtn} type="button" variant="outline" size="icon-xs" aria-expanded={false} aria-controls={leftId} aria-label="Show details" onClick={() => toggleDrawer('details')}>
+                ›
+              </Button>
+            </Hint>
+            <span className="stripid font-mono text-[11px] text-muted-foreground">{data.id}</span>
+            {dirty && <SessionLight state="dirty" label="Unsaved edits" />}
           </div>
         )}
       <div id={leftId} ref={leftEl} className="left" inert={drawers.details}>
-        <div className="head">
-          <h2 title={data.title}>{data.title}</h2>
-          <div className="meta">
-            <Pill className="mono">{data.id}</Pill>
+        <div className="px-3.5 pt-1.5 pb-0.5">
+          <h2 className="mb-1 truncate text-sm font-semibold" title={data.title}>{data.title}</h2>
+          <div className="flex flex-wrap items-center gap-1">
+            <Pill className="font-mono">{data.id}</Pill>
             <PriorityPill priority={data.priority} />
             <StatusPill card={data} />
-            {data.needsYou && <Pill className="needs-you-pill" title="Claude is waiting for you">needs you</Pill>}
+            {data.needsYou && <Pill variant="amber-solid" className="font-semibold" title="Claude is waiting for you">needs you</Pill>}
             <Pill>stage: {stageLabel(data.stage)}</Pill>
             <ExtraPills card={data} />
             <Pill>{data.type}</Pill>
-            {data.branch && <Pill className="mono" title="Branch">⎇ {data.branch}</Pill>}
-            {data.repo && <Pill className="mono" title="Primary repo">repo: {data.repo}</Pill>}
+            {data.branch && <Pill className="font-mono" title="Branch">⎇ {data.branch}</Pill>}
+            {data.repo && <Pill className="font-mono" title="Primary repo">repo: {data.repo}</Pill>}
             {data.context.map((c) => (
-              <Pill key={c} className="mono ctx" title="Context folder">+ {c}</Pill>
+              <Pill key={c} className="border-dashed font-mono" title="Context folder">+ {c}</Pill>
             ))}
-            {data.live && <span className="live" title="Claude Code session live" aria-label="session live" />}
+            {data.live && <SessionLight state="working" label="Claude Code session live" />}
           </div>
         </div>
         <RelationChips relations={data.relations} cards={cards} />
-        <div className="tabbar">
-          <Tabs tabs={TABS} value={tab} onChange={switchTab} idPrefix="bead" />
-          {/* The Spec tab puts its Edit button here (a portal), at the right end of the tab row. */}
-          <span ref={setSlot} className="tabslot" />
-        </div>
-        <div className="dbody" {...tabPanelProps('bead', tab)}>
-          {tab === 'spec' && <SpecTab key={data.id} d={data} slot={slot} onApproved={refresh} onError={onError} onDirty={setDirty} />}
-          {tab === 'activity' && <ActivityTab d={data} />}
-          {tab === 'artefacts' && <Artefacts key={id} beadId={id} artefacts={data.artefacts} onError={onError} />}
-        </div>
+        <Tabs value={tab} onValueChange={(v) => switchTab(v as TabKey)} className="min-h-0 flex-1 gap-0">
+          <div className="tabbar">
+            <TabsList variant="line" aria-label="Bead">
+              {TABS.map(([k, label]) => (
+                <TabsTrigger key={k} value={k} className="h-8 px-2 text-[12.5px]">{label}</TabsTrigger>
+              ))}
+            </TabsList>
+            <span className="spacer" />
+            {/* The Spec tab puts its Edit button here (a portal), at the right end of the tab row. */}
+            <span ref={setSlot} className="flex-none" />
+          </div>
+          <TabsContent value="spec" className="dbody">
+            <SpecTab key={data.id} d={data} slot={slot} onApproved={refresh} onError={onError} onDirty={setDirty} />
+          </TabsContent>
+          <TabsContent value="activity" className="dbody">
+            <ActivityTab d={data} />
+          </TabsContent>
+          <TabsContent value="artefacts" className="dbody">
+            <Artefacts key={id} beadId={id} artefacts={data.artefacts} onError={onError} />
+          </TabsContent>
+        </Tabs>
       </div>
       <SessionPane
         key={data.id}
@@ -215,6 +231,20 @@ export function BeadDetail({ id, cards, terminals, onTerminalsChanged, onTermina
   );
 }
 
+/** A hover and focus hint on a control (replaces a `title`). */
+function Hint({ text, side, children }: { text: string; side?: 'top' | 'right' | 'bottom' | 'left'; children: ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side={side}>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+const preBox = 'm-0 whitespace-pre-wrap rounded-lg border bg-muted px-2.5 py-2 font-mono text-xs [overflow-wrap:anywhere]';
+const sectionHead = 'mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground';
+const actions = 'flex flex-wrap items-center gap-2 py-2';
+
 const messageOf = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : String(e));
 
 /** Text cut to a few lines, with a Show more / Show less button. Collapsed, only the cut text is in the DOM. */
@@ -225,11 +255,11 @@ function Clamped({ text, lines, pre }: { text: string; lines: number; pre?: bool
   const shown = open || !c.cut ? text : c.text + '…';
   return (
     <>
-      {pre ? <pre className="design" id={id}>{shown}</pre> : <p className="pre clamp" id={id}>{shown}</p>}
+      {pre ? <pre className={preBox} id={id}>{shown}</pre> : <p className="mb-1 whitespace-pre-wrap [overflow-wrap:anywhere]" id={id}>{shown}</p>}
       {c.cut && (
-        <button type="button" className="sbtn" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
+        <Button type="button" variant="outline" size="xs" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
           {open ? 'Show less' : 'Show more'}
-        </button>
+        </Button>
       )}
     </>
   );
@@ -292,53 +322,53 @@ function SpecTab({ d, slot, onApproved, onError, onDirty }: { d: Detail; slot: H
       {d.editable &&
         slot &&
         createPortal(
-          <button
+          <Button
             ref={editBtn}
             type="button"
-            className="sbtn"
+            variant="outline" size="xs"
             disabled={busy}
             onClick={() => (setSaved(undefined), setWarn(undefined), setApproveError(undefined), setSent(false), setEditing(true))}
           >
             Edit
-          </button>,
+          </Button>,
           slot,
         )}
-      {saved && <p className="ok" role="status">{saved}</p>}
+      {saved && <p className="text-green-700" role="status">{saved}</p>}
       {d.description?.trim() && (
-        <div className="section">
-          <h4>Description</h4>
+        <div className="mb-2">
+          <h4 className={sectionHead}>Description</h4>
           <Clamped text={d.description} lines={DESCRIPTION_LINES} />
         </div>
       )}
-      <div className="section">
-        <h4>
+      <div className="mb-2">
+        <h4 className={sectionHead}>
           Criteria
-          {d.planApprovedAt && <span className="mu"> · plan approved {d.planApprovedAt.replace('T', ' ').slice(0, 16)}</span>}
+          {d.planApprovedAt && <span className="normal-case"> · plan approved {d.planApprovedAt.replace('T', ' ').slice(0, 16)}</span>}
         </h4>
         {d.criteriaChanged && (
-          <p className="wa" role="status">
+          <p className="text-amber-700" role="status">
             The criteria no longer match the approved baseline. Claude should show you the change and ask before going on.
           </p>
         )}
-        {rows.length === 0 && !prose && <p className="none">No acceptance criteria written yet.</p>}
+        {rows.length === 0 && !prose && <p className="text-xs text-muted-foreground">No acceptance criteria written yet.</p>}
         {prose && <Clamped text={d.acceptance ?? ''} lines={DESIGN_LINES} pre />}
         {rows.length > 0 && !prose && (
-          <ul className="crit">
+          <ul>
             {rows.map((r, i) => (
-              <li key={i}>
-                <span className={`cmark ${r.state === 'verified' ? 'ok' : r.state === 'unverified' ? 'wa' : 'mu'}`} role="img" aria-label={CRIT_LABEL[r.state]} title={CRIT_LABEL[r.state]}>
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2 border-b py-0.5 text-[12.5px]">
+                <span className={cn('w-[1.2em] flex-none text-center', r.state === 'verified' ? 'text-green-700' : r.state === 'unverified' ? 'text-amber-700' : 'text-muted-foreground')} role="img" aria-label={CRIT_LABEL[r.state]} title={CRIT_LABEL[r.state]}>
                   {CRIT_MARK[r.state]}
                 </span>
-                <span className="ctext pre">{r.text}</span>
+                <span className="min-w-0 flex-[1_1_14em] whitespace-pre-wrap [overflow-wrap:anywhere]">{r.text}</span>
                 {/* The title is for the mouse only: the hidden word names the note for a screen reader. */}
                 {r.check !== undefined && (
-                  <span className="cnote mono" title="Check">
+                  <span className="min-w-0 font-mono text-[11px] text-muted-foreground" title="Check">
                     <span className="sr-only">Check: </span>
                     {r.check}
                   </span>
                 )}
                 {r.evidence !== undefined && (
-                  <span className="cnote pre" title="Evidence">
+                  <span className="min-w-0 whitespace-pre-wrap text-[11px] text-muted-foreground [overflow-wrap:anywhere]" title="Evidence">
                     <span className="sr-only">Evidence: </span>
                     {r.evidence}
                   </span>
@@ -348,33 +378,33 @@ function SpecTab({ d, slot, onApproved, onError, onDirty }: { d: Detail; slot: H
           </ul>
         )}
         {approval.show && (
-          <div className="actions">
-            <button
+          <div className={actions}>
+            <Button
               type="button"
-              className="btn"
+              
               disabled={busy || approval.disabled}
               aria-describedby={approval.reasons.length ? 'approve-why' : undefined}
               onClick={doApprove}
             >
               Approve spec
-            </button>
-            <button ref={askBtn} type="button" className="btn ghost" disabled={busy || asking} onClick={() => (setAsking(true), setSent(false))}>
+            </Button>
+            <Button ref={askBtn} type="button" variant="outline" disabled={busy || asking} onClick={() => (setAsking(true), setSent(false))}>
               Request changes
-            </button>
-            {d.wipWarning && <span className="wa" role="status">{d.wipWarning}</span>}
+            </Button>
+            {d.wipWarning && <span className="text-amber-700" role="status">{d.wipWarning}</span>}
           </div>
         )}
         {approval.show && approval.reasons.length > 0 && (
-          <div id="approve-why" className="mu small whynot">
+          <div id="approve-why" className="mt-1 text-xs text-muted-foreground">
             Approval needs:
-            <ul>
+            <ul className="mt-0.5 list-disc pl-[18px]">
               {approval.reasons.map((r) => <li key={r}>{r}</li>)}
             </ul>
           </div>
         )}
-        {warn && <p className="wa" role="status">{warn}</p>}
-        {approveError && <p className="ko" role="alert">{approveError}</p>}
-        {sent && <p className="ok" role="status">Change request sent</p>}
+        {warn && <p className="text-amber-700" role="status">{warn}</p>}
+        {approveError && <p className="text-destructive" role="alert">{approveError}</p>}
+        {sent && <p className="text-green-700" role="status">Change request sent</p>}
         {asking && (
           <RequestChanges
             id={d.id}
@@ -387,9 +417,9 @@ function SpecTab({ d, slot, onApproved, onError, onDirty }: { d: Detail; slot: H
           />
         )}
       </div>
-      <div className="section">
-        <h4>Spec · {d.specFormat}</h4>
-        {d.design?.trim() ? <Clamped text={d.design} lines={DESIGN_LINES} pre /> : <p className="none">No spec written yet.</p>}
+      <div className="mb-2">
+        <h4 className={sectionHead}>Spec · {d.specFormat}</h4>
+        {d.design?.trim() ? <Clamped text={d.design} lines={DESIGN_LINES} pre /> : <p className="text-xs text-muted-foreground">No spec written yet.</p>}
       </div>
     </>
   );
@@ -412,9 +442,9 @@ function RequestChanges({ id, onDone, onCancel }: { id: string; onDone: () => vo
   };
   return (
     <form onSubmit={submit} noValidate aria-busy={busy}>
-      <label className="lbl" htmlFor={field}>Change request note</label>
-      <textarea
-        className="dtext"
+      <FieldLabel htmlFor={field}>Change request note</FieldLabel>
+      <Textarea
+        className="mb-1 field-sizing-fixed resize-y"
         id={field}
         value={note}
         onChange={(e) => (setNote(e.target.value), setError(undefined))}
@@ -424,10 +454,10 @@ function RequestChanges({ id, onDone, onCancel }: { id: string; onDone: () => vo
         aria-invalid={!!error}
         autoFocus
       />
-      {error && <div className="ferr" role="alert">{error}</div>}
-      <div className="actions">
-        <button type="submit" className="btn" disabled={busy}>{busy ? 'Sending…' : 'Submit'}</button>
-        <button type="button" className="btn ghost" onClick={onCancel} disabled={busy}>Cancel</button>
+      {error && <FieldError alert>{error}</FieldError>}
+      <div className={actions}>
+        <Button type="submit"  disabled={busy}>{busy ? 'Sending…' : 'Submit'}</Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>Cancel</Button>
       </div>
     </form>
   );
@@ -435,18 +465,18 @@ function RequestChanges({ id, onDone, onCancel }: { id: string; onDone: () => vo
 
 function ActivityTab({ d }: { d: Detail }) {
   const comments = newestFirst(d.comments);
-  if (comments.length === 0) return <p className="none">No comments yet.</p>;
+  if (comments.length === 0) return <p className="text-xs text-muted-foreground">No comments yet.</p>;
   return (
-    <table>
+    <table className="w-full border-collapse text-[12.5px] [&_td]:border-b [&_td]:px-1.5 [&_td]:py-1 [&_td]:text-left [&_td]:align-top [&_th]:border-b [&_th]:px-1.5 [&_th]:py-1 [&_th]:text-left [&_th]:text-[11px] [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-muted-foreground">
       <thead>
         <tr><th>When</th><th>Who</th><th>Comment</th></tr>
       </thead>
       <tbody>
         {comments.map((c) => (
           <tr key={c.id}>
-            <td className="mu nowrap">{c.created_at.replace('T', ' ').slice(0, 16)}</td>
-            <td className="mu">{c.author}</td>
-            <td className="pre">{c.text}</td>
+            <td className="text-muted-foreground whitespace-nowrap">{c.created_at.replace('T', ' ').slice(0, 16)}</td>
+            <td className="text-muted-foreground">{c.author}</td>
+            <td className="whitespace-pre-wrap [overflow-wrap:anywhere]">{c.text}</td>
           </tr>
         ))}
       </tbody>
@@ -565,70 +595,70 @@ function SessionPane({
   };
 
   return (
-    <aside ref={aside} className="session">
-      <h4>Session</h4>
+    <aside ref={aside} className="session text-[13px]">
+      <h4 className={sectionHead}>Session</h4>
       {(!known || buttons.fallback !== undefined) && <CopyCommand command={d.command} reason={known ? buttons.fallback : undefined} />}
       {d.stage === 'specify' && (
-        <div className="actions">
-          <button type="button" className="btn ghost" disabled={busy || releasing || !known || !releaseVerdict.ok} onClick={doRelease}>
+        <div className={actions}>
+          <Button type="button" variant="outline" disabled={busy || releasing || !known || !releaseVerdict.ok} onClick={doRelease}>
             {releasing ? 'Releasing…' : 'Release'}
-          </button>
-          {!known ? <span className="mu">Checking…</span> : !releaseVerdict.ok && releaseVerdict.reason && <span className="mu">{releaseVerdict.reason}</span>}
-          {releaseError && <span className="ko" role="alert">{releaseError}</span>}
+          </Button>
+          {!known ? <span className="text-muted-foreground">Checking…</span> : !releaseVerdict.ok && releaseVerdict.reason && <span className="text-muted-foreground">{releaseVerdict.reason}</span>}
+          {releaseError && <span className="text-destructive" role="alert">{releaseError}</span>}
         </div>
       )}
       {/* Outside the Specify block: after a release the bead is in Backlog and the block is gone. */}
-      {releaseWarn && <p className="wa" role="status">{releaseWarn}</p>}
-      {known && liveElsewhere(d, list.terminals, d.id) && <p className="mu small">The tracker lists a live session for this bead that is not in this cockpit.</p>}
+      {releaseWarn && <p className="text-amber-700" role="status">{releaseWarn}</p>}
+      {known && liveElsewhere(d, list.terminals, d.id) && <p className="text-muted-foreground text-xs">The tracker lists a live session for this bead that is not in this cockpit.</p>}
       {known && available && (
         <>
-          <div className="actions">
+          <div className={actions}>
             {buttons.specify && (
-              <button type="button" className="btn" disabled={busy} onClick={() => begin({ mode: 'specify' })}>Start specifying</button>
+              <Button type="button" disabled={busy} onClick={() => begin({ mode: 'specify' })}>Start specifying</Button>
             )}
             {buttons.start && (
-              <button type="button" className={buttons.specify ? 'btn ghost' : 'btn'} disabled={busy} onClick={() => begin({ mode: 'work' })}>
+              <Button type="button" variant={buttons.specify ? 'outline' : 'default'} disabled={busy} onClick={() => begin({ mode: 'work' })}>
                 Start session
-              </button>
+              </Button>
             )}
             {buttons.stop && (
-              <button ref={stopBtn} type="button" className="btn ghost" disabled={stoppingNow && !slow} onClick={() => stop(buttons.stop!)}>
+              <Button ref={stopBtn} type="button" variant="outline" disabled={stoppingNow && !slow} onClick={() => stop(buttons.stop!)}>
                 {stoppingNow && !slow ? 'Stopping…' : 'Stop'}
-              </button>
+              </Button>
             )}
             {stoppingNow && slow && (
-              <span className="wa" role="status">
+              <span className="text-amber-700" role="status">
                 {presses > 1 ? 'Still stopping. If it does not end, restart the cockpit.' : 'Still stopping. Press Stop again to end it.'}
               </span>
             )}
           </div>
           {buttons.resume.length > 0 && resumeValue && (
-            <div className="actions">
-              <label className="lbl" htmlFor={resumeField}>Resume</label>
-              <select id={resumeField} value={resumeValue} onChange={(e) => setResumeId(e.target.value)}>
+            <div className={actions}>
+              <FieldLabel className="m-0" htmlFor={resumeField}>Resume</FieldLabel>
+              <NativeSelect className="min-w-0 max-w-full" id={resumeField} value={resumeValue} onChange={(e) => setResumeId(e.target.value)}>
                 {buttons.resume.map((r) => (
-                  <option key={r.sessionId} value={r.sessionId}>{r.label}</option>
+                  <NativeSelectOption key={r.sessionId} value={r.sessionId}>{r.label}</NativeSelectOption>
                 ))}
-              </select>
-              <button type="button" className="btn ghost" disabled={busy} onClick={() => begin({ mode: 'resume', sessionId: resumeValue })}>
+              </NativeSelect>
+              <Button type="button" variant="outline" disabled={busy} onClick={() => begin({ mode: 'resume', sessionId: resumeValue })}>
                 Resume
-              </button>
+              </Button>
             </div>
           )}
-          {problem && <p className="ko" role="alert">{problem}</p>}
+          {problem && <p className="text-destructive" role="alert">{problem}</p>}
           {mine.length > 1 && (
-            <div ref={tabs} className="termtabs" role="group" aria-label="Terminals of this bead">
+            <div ref={tabs} className="mb-2 flex flex-wrap gap-1.5" role="group" aria-label="Terminals of this bead">
               {mine.map((t) => (
-                <button key={t.id} type="button" className={`sbtn${t.id === active?.id ? ' on' : ''}`} aria-pressed={t.id === active?.id} onClick={() => setPicked(t.id)}>
+                <Button key={t.id} type="button" size="xs" variant={t.id === active?.id ? 'secondary' : 'outline'} className={cn(t.id === active?.id && 'font-semibold')} aria-pressed={t.id === active?.id} onClick={() => setPicked(t.id)}>
                   {t.mode} {timeOf(t.startedAt)}
                   {t.exited ? ' (ended)' : ''}
-                </button>
+                </Button>
               ))}
             </div>
           )}
           {active ? (
             <TerminalBoundary command={d.command}>
-              <Suspense fallback={<p className="mu">Loading terminal…</p>}>
+              <Suspense fallback={<p className="text-muted-foreground">Loading terminal…</p>}>
                 <TerminalPane
                   key={active.id}
                   terminalId={active.id}
@@ -640,17 +670,17 @@ function SessionPane({
               </Suspense>
             </TerminalBoundary>
           ) : (
-            <p className="none">No terminal open for this bead.</p>
+            <p className="text-xs text-muted-foreground">No terminal open for this bead.</p>
           )}
         </>
       )}
-      <h4>Sessions</h4>
-      {d.sessions.length === 0 && <p className="none">No sessions recorded.</p>}
+      <h4 className={cn(sectionHead, "mt-3.5")}>Sessions</h4>
+      {d.sessions.length === 0 && <p className="text-xs text-muted-foreground">No sessions recorded.</p>}
       {d.sessions.map((s) => (
-        <div key={s.sessionId} className="srow">
-          <span className="mono">{s.sessionId}</span>
-          <span className="mu">{s.startedAt.replace('T', ' ').slice(0, 16)}</span>
-          <span className={s.endedAt ? 'mu' : 'ok'}>{s.endedAt ? (s.archived ? 'archived' : 'ended') : 'live'}</span>
+        <div key={s.sessionId} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-b py-1.5 text-[12.5px]">
+          <span className="truncate font-mono">{s.sessionId}</span>
+          <span className="text-muted-foreground">{s.startedAt.replace('T', ' ').slice(0, 16)}</span>
+          <span className={s.endedAt ? 'text-muted-foreground' : 'text-green-700'}>{s.endedAt ? (s.archived ? 'archived' : 'ended') : 'live'}</span>
         </div>
       ))}
     </aside>

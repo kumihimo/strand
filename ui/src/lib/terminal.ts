@@ -178,17 +178,20 @@ export function socketUrl(loc: { protocol: string; host: string }, tid: string):
 
 type Token = (name: string) => string;
 
-/** xterm colours from the cockpit's CSS tokens (`theme.css`). `token` reads one custom property. */
+/**
+ * xterm colours from the terminal's own CSS tokens (`--term-*` on `.termhost` in `layout.css`), not the page theme.
+ * `token` reads one custom property.
+ */
 export function terminalTheme(token: Token): { background: string; foreground: string; cursor: string; cursorAccent: string; selectionBackground: string } {
-  const accent = token('--accent');
+  const accent = token('--term-accent');
   return {
-    background: token('--bg'),
-    foreground: token('--text'),
+    background: token('--term-bg'),
+    foreground: token('--term-text'),
     cursor: accent,
-    cursorAccent: token('--bg'),
+    cursorAccent: token('--term-bg'),
     // A hex accent gets about a third alpha for the selection; any other colour form is used as it is.
     selectionBackground: /^#[0-9a-f]{6}$/i.test(accent) ? `${accent}55` : accent,
   };
 }
 
-export const terminalFont = (token: Token): string => token('--mono') || 'Consolas, monospace';
+export const terminalFont = (token: Token): string => token('--term-mono') || 'Consolas, monospace';

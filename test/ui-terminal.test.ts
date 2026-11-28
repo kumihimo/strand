@@ -231,15 +231,16 @@ test('socketUrl: same host, ws for http and wss for https, id escaped', () => {
   assert.equal(socketUrl({ protocol: 'https:', host: 'h.test' }, 'a/b'), 'wss://h.test/api/terminals/a%2Fb/io');
 });
 
-test('terminalTheme comes from the cockpit tokens', () => {
-  const tokens: Record<string, string> = { '--bg': '#0f1115', '--text': '#e6e9ef', '--accent': '#7aa2ff', '--muted': '#8b94a3' };
+test('terminalTheme comes from the terminal tokens, not the page theme', () => {
+  // The page's shadcn tokens share names with the old palette (--accent, --muted): the terminal must not read them.
+  const tokens: Record<string, string> = { '--term-bg': '#0f1115', '--term-text': '#e6e9ef', '--term-accent': '#7aa2ff', '--accent': 'oklch(0.97 0 0)', '--background': 'oklch(1 0 0)' };
   const t = terminalTheme((n) => tokens[n] ?? '');
   assert.equal(t.background, '#0f1115');
   assert.equal(t.foreground, '#e6e9ef');
   assert.equal(t.cursor, '#7aa2ff');
   assert.equal(t.selectionBackground, '#7aa2ff55');
   // A token that is not a plain hex colour is used as it is.
-  assert.equal(terminalTheme((n) => (n === '--accent' ? 'rgb(1, 2, 3)' : '#000000')).selectionBackground, 'rgb(1, 2, 3)');
+  assert.equal(terminalTheme((n) => (n === '--term-accent' ? 'rgb(1, 2, 3)' : '#000000')).selectionBackground, 'rgb(1, 2, 3)');
 });
 
 const T0 = Date.parse('2026-11-23T10:00:00.000Z');
@@ -294,7 +295,7 @@ test('liveElsewhere: a live card with no cockpit terminal for the bead', () => {
   assert.equal(liveElsewhere({ live: true }, [term({ exited: { code: 0, at: 'x' } })], 'b-1'), true);
 });
 
-test('terminalFont: the mono token, with a fallback', () => {
-  assert.equal(terminalFont((n) => (n === '--mono' ? 'Consolas, monospace' : '')), 'Consolas, monospace');
+test('terminalFont: the terminal mono token, with a fallback', () => {
+  assert.equal(terminalFont((n) => (n === '--term-mono' ? 'Consolas, monospace' : '')), 'Consolas, monospace');
   assert.match(terminalFont(() => ''), /monospace$/);
 });

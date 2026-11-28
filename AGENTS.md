@@ -20,8 +20,8 @@ Design authority: [RFC 0001](docs/rfc/0001-sdlc-system.md) and [RFC 0003](docs/r
 ## Stack and layout
 
 - **Node ≥ 24, TypeScript run directly by Node's type stripping**: no build step for server and CLI code ([ADR 0007](docs/adr/0007-node-type-stripping.md)). Erasable syntax only: no `enum`, `namespace`, parameter properties; imports use explicit `.ts` extensions; `import type` for types.
-- **UI:** React 19 + Vite 8 in `ui/`, built to `dist/ui` (git-ignored). UI code may import *types* from `src/` and pure modules with no Node imports (e.g. `src/core/spec.ts`, `src/core/facts.ts`, `src/core/stage.ts`), never server code.
-- **Runtime deps:** `@napi-rs/keyring`, `cross-spawn`, `fastify`, `@fastify/static`, `@fastify/websocket`, `node-pty` (pinned exactly at 1.1.0, see [ADR 0017](docs/adr/0017-terminals-run-only-sdlc-work.md)), `open`, `react`, `react-dom`, `@xterm/xterm`, `@xterm/addon-fit`. Dev only, beside the type packages, TypeScript and Vite: `ws` (a WebSocket client for the tests), `electron` (pinned exactly at 45.5.0, the desktop app's runtime, whose Node 24 runs `electron/main.ts` by type stripping) and `electron-builder` (pinned, packaging). Adding one needs a reason in the commit message.
+- **UI:** React 19 + Vite 8 in `ui/`, built to `dist/ui` (git-ignored). Components are shadcn/ui on Tailwind v4 and Radix with shadcn's default theme, unmodified ([ADR 0026](docs/adr/0026-shadcn-ui.md)): `ui/components.json`, the copied components in `ui/src/components/ui/` (imports made relative with `.tsx` extensions; no `@/` alias), the theme in `ui/src/index.css` and layout only in `ui/src/layout.css`. UI code may import *types* from `src/` and pure modules with no Node imports (e.g. `src/core/spec.ts`, `src/core/facts.ts`, `src/core/stage.ts`), never server code.
+- **Runtime deps:** `@napi-rs/keyring`, `cross-spawn`, `fastify`, `@fastify/static`, `@fastify/websocket`, `node-pty` (pinned exactly at 1.1.0, see [ADR 0017](docs/adr/0017-terminals-run-only-sdlc-work.md)), `open`, `react`, `react-dom`, `@xterm/xterm`, `@xterm/addon-fit`, and for the UI `radix-ui`, `class-variance-authority`, `cn`, `lucide-react`, `tw-animate-css`, `@fontsource-variable/geist`. Dev only, beside the type packages, TypeScript and Vite: `tailwindcss` and `@tailwindcss/vite` (the UI's CSS), `shadcn` (its CLI and theme CSS), `ws` (a WebSocket client for the tests), `electron` (pinned exactly at 45.5.0, the desktop app's runtime, whose Node 24 runs `electron/main.ts` by type stripping) and `electron-builder` (pinned, packaging). Adding one needs a reason in the commit message.
 
 ```
 src/core/        adapters (bd, but, gitea, gitfacts, exec, config, secrets, tools) + pure logic
@@ -37,6 +37,7 @@ src/cockpit/     Fastify server, auth, routes, actions (open), read model; pty.t
 electron/        the desktop app's main process: main.ts (starts strand cockpit --ipc, sets the cookie, the
                  window) + handoff.ts (pure, unit-tested: IPC message, cookie, navigation, quit rules)
 ui/src/          React app: views/, components/ (TerminalPane, TerminalBoundary, EditBead, ViewControls, ...),
+                 components/ui/ (shadcn/ui, from ui/components.json), index.css (theme), layout.css,
                  lib/ (pure, unit-tested: filter, terminal, detail, drawer, views, ...), useStoredView, useDrawers,
                  useUnloadGuard, api.ts
 commands/, skills/strand-work/, hooks/hooks.json, .claude-plugin/   the Claude Code plugin

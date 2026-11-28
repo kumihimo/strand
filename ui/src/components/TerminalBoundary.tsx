@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react';
 import { CopyCommand } from './CopyCommand.tsx';
+import { Button } from './ui/button.tsx';
 
 type P = { command: string; children: ReactNode };
 type S = { failed: boolean };
@@ -19,9 +20,9 @@ export class TerminalBoundary extends Component<P, S> {
     if (!this.state.failed) return this.props.children;
     return (
       <div role="alert">
-        <p className="ko">Could not load the terminal. Reload the page.</p>
-        <p>
-          <button type="button" className="btn" onClick={() => location.reload()}>Reload</button>
+        <p className="mb-2 text-destructive">Could not load the terminal. Reload the page.</p>
+        <p className="mb-2">
+          <Button type="button" onClick={() => location.reload()}>Reload</Button>
         </p>
         <CopyCommand command={this.props.command} />
       </div>

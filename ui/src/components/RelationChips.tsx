@@ -1,20 +1,18 @@
 import { useState } from 'react';
 import type { BeadCard, Relations } from '../../../src/cockpit/model.ts';
 import { relationGroups } from '../lib/detail.ts';
+import { BeadLink } from './BeadLink.tsx';
 import { StatusPill } from './Pill.tsx';
+import { Button } from './ui/button.tsx';
 
 /** A bead id that navigates to its detail; board cards (when known) add the title and status. */
 function Chip({ id, card, parent }: { id: string; card?: BeadCard; parent?: boolean }) {
   return (
-    <a className={`rlink${parent ? ' parent' : ''}`} href={`#/board/${encodeURIComponent(id)}`} title={card?.title}>
+    <BeadLink id={id} title={card?.title} parent={parent}>
       {parent ? `⤴ ${id}` : id}
-      {card && !parent && (
-        <span className="s">
-          <StatusPill card={card} />
-        </span>
-      )}
-      {card && parent && <span className="mu"> · {card.title}</span>}
-    </a>
+      {card && !parent && <StatusPill card={card} />}
+      {card && parent && <span className="font-sans text-muted-foreground"> · {card.title}</span>}
+    </BeadLink>
   );
 }
 
@@ -24,22 +22,22 @@ export function RelationChips({ relations, cards }: { relations: Relations; card
   const groups = relationGroups(relations, expanded);
   if (groups.length === 0) return null;
   return (
-    <div className="rel" role="group" aria-label="Relations">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 pt-0.5 pb-1 text-xs" role="group" aria-label="Relations">
       {groups.map((g) => (
-        <span key={g.label} className="relgroup">
-          <span className="rlabel">{g.label}</span>
+        <span key={g.label} className="inline-flex flex-wrap items-center gap-1">
+          <span className="text-[11px] text-muted-foreground">{g.label}</span>
           {g.ids.map((id) => (
             <Chip key={id} id={id} card={cards.get(id)} parent={g.label === 'Parent'} />
           ))}
           {g.hidden > 0 && (
-            <button type="button" className="sbtn" aria-expanded={false} onClick={() => setExpanded((e) => [...e, g.label])}>
+            <Button type="button" variant="outline" size="xs" aria-expanded={false} onClick={() => setExpanded((e) => [...e, g.label])}>
               +{g.hidden} more
-            </button>
+            </Button>
           )}
           {g.hidden === 0 && expanded.includes(g.label) && (
-            <button type="button" className="sbtn" aria-expanded onClick={() => setExpanded((e) => e.filter((l) => l !== g.label))}>
+            <Button type="button" variant="outline" size="xs" aria-expanded onClick={() => setExpanded((e) => e.filter((l) => l !== g.label))}>
               Show fewer
-            </button>
+            </Button>
           )}
         </span>
       ))}
