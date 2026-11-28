@@ -160,3 +160,13 @@ test('AT-9 unloadPrompt: a reload always asks with reload wording; a close asks 
   assert.deepEqual(unloadPrompt({ closing: true, owned: true })?.buttons, ['Quit', 'Cancel']);
   assert.equal(unloadPrompt({ closing: true, owned: false }), undefined);
 });
+
+test('AT-8 Help has Licences on every platform, after the links, carrying the licences command', () => {
+  for (const p of ALL) {
+    const help = menu(build(p), 'Help');
+    assert.deepEqual(labels(help).slice(0, 3), ['Strand on GitHub', 'Report an Issue…', 'Licences'], p);
+    assert.equal(find(build(p), 'Licences')?.command, 'licences');
+  }
+  assert.ok((COMMANDS as readonly string[]).includes('licences'));
+  assert.ok(!(PAGE_COMMANDS as readonly string[]).includes('licences'), 'main opens the window; the page never sees it');
+});

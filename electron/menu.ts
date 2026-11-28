@@ -20,6 +20,7 @@ export const COMMANDS = [
   'restart-to-update',
   'open:repo',
   'open:issues',
+  'licences',
 ] as const;
 export type Command = (typeof COMMANDS)[number];
 
@@ -152,6 +153,8 @@ export function menuTemplate(o: { platform: Platform; packaged: boolean; updateR
     submenu: [
       { label: 'Strand on GitHub', command: 'open:repo' },
       { label: 'Report an Issue…', command: 'open:issues' },
+      SEP,
+      { label: 'Licences', command: 'licences' },
       ...(mac ? [] : [...(restart.length ? [SEP, ...restart] : []), SEP, { role: 'about' }]),
     ],
   };

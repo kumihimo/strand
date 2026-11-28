@@ -3,10 +3,10 @@
 // over the IPC channel. The key is set here as the session cookie, on an in-memory partition, and the window
 // loads the server's root with no key in the URL. Electron runs this file with Node's type stripping.
 import { spawn, type ChildProcess } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BrowserWindow, Menu, Notification, app, dialog, net, session, shell, type MenuItemConstructorOptions } from 'electron';
 import {
   READY_TIMEOUT_MS,
@@ -25,6 +25,7 @@ import {
   windowOpenDecision,
   type Ready,
 } from './handoff.ts';
+import { electronNoticeDir, licencesNavigation, licencesPage, licencesRequestAllowed, readNotices } from './licences.ts';
 import { isPageCommand, linkFor, menuTemplate, unloadPrompt, type Command, type Item, type Platform } from './menu.ts';
 import { readyMessage, sha256File, startUpdates, type UpdaterLike, type Updates } from './update.ts';
 
@@ -223,7 +224,74 @@ function runCommand(c: Command): void {
     case 'restart-to-update':
       if (updates?.restartToUpdate()) app.quit();
       return;
+    case 'licences':
+      return openLicences();
   }
+}
+
+let licencesWin: BrowserWindow | undefined;
+
+const readText = (p: string): string | undefined => {
+  try {
+    return readFileSync(p, 'utf8');
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Help > Licences (ADR 0031): a local page built from the notice files the app carries, in a window of its own
+ * with JavaScript off, on a session that fetches nothing but that page and Chromium's notices.
+ */
+function openLicences(): void {
+  if (licencesWin) return licencesWin.focus();
+  const electronDir = electronNoticeDir({ packaged: app.isPackaged, execPath: process.execPath, appRoot: APP_ROOT });
+  const chromiumUrl = pathToFileURL(path.join(electronDir, 'LICENSES.chromium.html')).href;
+  const notices = readNotices({
+    appRoot: APP_ROOT,
+    electronDir,
+    manifest: readText(path.join(APP_ROOT, 'vendor', 'manifest.json')) ?? '{}',
+    platform: process.platform,
+    versions: { strand: app.getVersion(), electron: process.versions.electron, chromium: process.versions.chrome },
+    read: readText,
+  });
+  const file = path.join(app.getPath('userData'), 'licences.html');
+  try {
+    writeFileSync(file, licencesPage(notices, { chromiumUrl }));
+  } catch (e) {
+    return void dialog.showErrorBox('Strand', `The licences page could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  const pages = [pathToFileURL(file).href, chromiumUrl];
+  const ses = session.fromPartition('strand-licences');
+  ses.webRequest.onBeforeRequest((d, cb) => cb({ cancel: !licencesRequestAllowed(d.url, pages) }));
+  ses.setPermissionRequestHandler((_wc, _p, cb) => cb(false));
+  const w = new BrowserWindow({
+    width: 900,
+    height: 800,
+    title: 'Strand licences',
+    ...(PLATFORM === 'darwin' ? {} : { icon: ICON }),
+    webPreferences: { session: ses, javascript: false, contextIsolation: true, sandbox: true, nodeIntegration: false, webviewTag: false },
+  });
+  const wc = w.webContents;
+  wc.setWindowOpenHandler(({ url }) => {
+    const { external } = licencesNavigation(url, '');
+    if (external !== undefined) shell.openExternal(external).catch((e: unknown) => console.error(`strand: could not open a link: ${String(e)}`));
+    return { action: 'deny' };
+  });
+  const guard = (e: { preventDefault(): void }, url: string) => {
+    const { allow, external } = licencesNavigation(url, chromiumUrl);
+    if (allow) return;
+    e.preventDefault();
+    if (external !== undefined) shell.openExternal(external).catch((err: unknown) => console.error(`strand: could not open a link: ${String(err)}`));
+  };
+  wc.on('will-navigate', guard);
+  wc.on('will-redirect', guard);
+  wc.on('will-attach-webview', (e) => e.preventDefault());
+  w.on('closed', () => {
+    if (licencesWin === w) licencesWin = undefined;
+  });
+  licencesWin = w;
+  w.loadFile(file).catch((e: unknown) => console.error(`strand: could not open the licences page: ${String(e)}`));
 }
 
 function toElectron(items: Item[]): MenuItemConstructorOptions[] {
