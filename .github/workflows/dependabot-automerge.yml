@@ -1,0 +1,24 @@
+name: Dependabot auto-merge
+
+# Turns on auto-merge (rebase) for pull requests Dependabot opened. The Protect main ruleset requires both CI
+# checks, so GitHub merges the PR only once they pass. The guard is the PR's author, not github.actor, which a
+# re-run can change. pull_request (not pull_request_target) gives a fork's PR a read-only token. No actions are
+# used, and the PR URL reaches the script through env, never an expression inside it.
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --rebase "$PR_URL"
