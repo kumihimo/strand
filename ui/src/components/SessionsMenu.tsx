@@ -1,6 +1,9 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type Ref } from 'react';
+import { useRef, useState, type Ref } from 'react';
+import { cn } from 'cn';
 import type { TerminalList } from '../api.ts';
 import { sessionRows, type SessionRow } from '../lib/terminal.ts';
+import { Button } from './ui/button.tsx';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu.tsx';
 
 type P = {
   /** Undefined until the first load, and after a failed fetch with nothing loaded. */
@@ -18,15 +21,13 @@ type P = {
 const startedAgo = (since: string) => (since === 'just now' ? 'started just now' : `started ${since} ago`);
 
 /**
- * The header's Sessions menu: live cockpit terminals across beads, and a jump to one.
- * It has its own outside-click and Escape handling: ViewControls' is tied to its filter groups.
+ * The header's Sessions menu: live cockpit terminals across beads, and a jump to one. Radix gives it the menu
+ * keys (arrows, Home, End, type-ahead), Escape and outside click, and puts focus back on the button on close.
  */
 export function SessionsMenu({ list, failed, cards, onOpen, buttonRef }: P) {
   const [open, setOpen] = useState(false);
-  const id = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const btn = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
+  // A chosen row sends focus to its terminal: the menu must not pull it back to the button as it closes.
+  const chosen = useRef(false);
 
   const { live, ended } = sessionRows(list?.terminals ?? [], cards, Date.now());
   const note =
@@ -35,107 +36,59 @@ export function SessionsMenu({ list, failed, cards, onOpen, buttonRef }: P) {
     : live.length === 0 ? 'No sessions are open.'
     : undefined;
 
-  const setBtn = (el: HTMLButtonElement | null) => {
-    btn.current = el;
-    if (typeof buttonRef === 'function') buttonRef(el);
-    else if (buttonRef) (buttonRef as { current: HTMLButtonElement | null }).current = el;
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
-
-  // Opening puts focus on the first row, when there is one.
-  useEffect(() => {
-    if (open) menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-  }, [open]);
-
-  const rows = () => Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    // With the menu closed, Escape is not ours: the terminal and forms need it.
-    if (!open) return;
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      setOpen(false);
-      btn.current?.focus();
-      return;
-    }
-    if (e.key === 'Tab') {
-      // Focus the button first: the row is about to unmount, and Tab then moves on from the button.
-      btn.current?.focus();
-      return void setOpen(false);
-    }
-    const items = rows();
-    if (items.length === 0) return;
-    const at = items.indexOf(document.activeElement as HTMLElement);
-    const to =
-      e.key === 'ArrowDown' ? items[(at + 1) % items.length]
-      : e.key === 'ArrowUp' ? items[(at - 1 + items.length) % items.length]
-      : e.key === 'Home' ? items[0]
-      : e.key === 'End' ? items[items.length - 1]
-      : undefined;
-    if (to) {
-      e.preventDefault();
-      to.focus();
-    }
-  };
-
-  const choose = (beadId: string) => {
-    setOpen(false);
-    onOpen(beadId);
-  };
-
-  const rowButton = (r: SessionRow) => (
-    <button key={r.terminalId} type="button" role="menuitem" className="smrow" tabIndex={-1} onClick={() => choose(r.beadId)}>
-      <span className="smid">{r.beadId}</span>
-      {r.title && <span className="smtitle">{r.title}</span>}
-      <span className="mu small">
+  const row = (r: SessionRow) => (
+    <DropdownMenuItem
+      key={r.terminalId}
+      className="flex-col items-start gap-0"
+      onSelect={() => {
+        chosen.current = true;
+        onOpen(r.beadId);
+      }}
+    >
+      <span className="font-semibold">{r.beadId}</span>
+      {r.title && <span className="max-w-full truncate">{r.title}</span>}
+      <span className="text-xs text-muted-foreground">
         {r.mode} · {r.exitCode === undefined ? r.since : `Ended (code ${r.exitCode}) · ${startedAgo(r.since)}`}
       </span>
-    </button>
+    </DropdownMenuItem>
   );
 
-  const hasRows = live.length > 0 || ended.length > 0;
-  const showRows = hasRows && list?.available;
+  const showRows = (live.length > 0 || ended.length > 0) && list?.available;
 
   return (
-    <div ref={root} className="sessmenu" onKeyDown={onKeyDown}>
-      <button
-        ref={setBtn}
-        type="button"
-        className={`btn ghost sessbtn${live.length > 0 ? ' has' : ''}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? `${id}-panel` : undefined}
-        aria-label={live.length > 0 ? `Sessions (${live.length})` : 'Sessions'}
-        onClick={() => setOpen(!open)}
+    <DropdownMenu
+      open={open}
+      onOpenChange={(o) => {
+        if (o) chosen.current = false;
+        setOpen(o);
+      }}
+    >
+      <DropdownMenuTrigger asChild>
+        <Button
+          ref={buttonRef}
+          variant="outline"
+          className={cn('sessbtn', live.length > 0 && 'has')}
+          aria-label={live.length > 0 ? `Sessions (${live.length})` : 'Sessions'}
+        >
+          <span className="sesslabel">Sessions</span>
+          {live.length > 0 && <span className="sesscount">{` (${live.length})`}</span>}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        aria-label="Sessions"
+        className="max-h-[60vh] w-[360px] max-w-[calc(100vw-28px)]"
+        onCloseAutoFocus={(e) => chosen.current && e.preventDefault()}
       >
-        <span className="sesslabel">Sessions</span>
-        {live.length > 0 && <span className="sesscount">{` (${live.length})`}</span>}
-      </button>
-      {open && (
-        <div className="smpanel" id={`${id}-panel`}>
-          {note && <p className="mu small smnote">{note}</p>}
-          {showRows && (
-            <div ref={menu} role="menu" aria-label="Sessions" className="smmenu">
-              {live.map(rowButton)}
-              {ended.length > 0 && (
-                <>
-                  {live.length > 0 && <hr className="smsep" />}
-                  {ended.map(rowButton)}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+        {note && <p className="px-2 py-1.5 text-xs text-muted-foreground">{note}</p>}
+        {showRows && (
+          <>
+            {live.map(row)}
+            {ended.length > 0 && live.length > 0 && <DropdownMenuSeparator />}
+            {ended.map(row)}
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

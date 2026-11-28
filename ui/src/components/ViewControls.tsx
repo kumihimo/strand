@@ -1,4 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type FocusEvent, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
+import { cn } from 'cn';
+import { ChevronDownIcon } from 'lucide-react';
 import {
   activeCount,
   DEFAULT_VIEW,
@@ -12,6 +14,11 @@ import {
   type ViewState,
 } from '../lib/filter.ts';
 import { stageLabel } from '../lib/format.ts';
+import { Button } from './ui/button.tsx';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from './ui/dropdown-menu.tsx';
+import { Input } from './ui/input.tsx';
+import { NativeSelect, NativeSelectOption } from './ui/native-select.tsx';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover.tsx';
 
 type P = {
   view: ViewState;
@@ -39,101 +46,59 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 type ListKey = 'status' | 'stage' | 'type' | 'repo' | 'label';
 
+const fieldLabel = 'text-[11px] uppercase tracking-wide text-muted-foreground';
+const checkLabel = 'inline-flex cursor-pointer items-center gap-1 text-xs text-muted-foreground';
+
 type GroupProps = {
   label: string;
   values: string[];
   choices: { value: string; text: string }[];
-  open: boolean;
-  onToggleOpen: () => void;
   onToggle: (value: string) => void;
 };
 
-function Group({ label, values, choices, open, onToggleOpen, onToggle }: GroupProps) {
-  const panel = useRef<HTMLFieldSetElement>(null);
-  // A panel that would run past the right edge of the page area opens towards the left instead.
-  useLayoutEffect(() => {
-    const el = panel.current;
-    if (!open || !el) return;
-    el.classList.remove('right');
-    const edge = el.closest('main')?.getBoundingClientRect().right ?? window.innerWidth;
-    if (el.getBoundingClientRect().right > edge - 4) el.classList.add('right');
-  }, [open]);
+/** One filter list: a menu of checkboxes that stays open while ticking. */
+function Group({ label, values, choices, onToggle }: GroupProps) {
   return (
-    <details className={`fgroup${values.length ? ' active' : ''}`} open={open}>
-      <summary
-        onClick={(e) => {
-          e.preventDefault(); // the open state is ours, so only one group is open at a time
-          onToggleOpen();
-        }}
-      >
-        {label}
-        {values.length > 0 && <span className="fcount"> ({values.length})</span>}
-      </summary>
-      <fieldset className="fpanel" ref={panel}>
-        <legend className="sr-only">{label}</legend>
-        {choices.length === 0 && <span className="none">Nothing to choose</span>}
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant={values.length ? 'secondary' : 'outline'} size="xs" className={cn(values.length > 0 && 'font-semibold')}>
+          {label}
+          {values.length > 0 && <span className="fcount"> ({values.length})</span>}
+          <ChevronDownIcon aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="max-h-[50vh] w-auto min-w-40" aria-label={label}>
+        <DropdownMenuLabel className="sr-only">{label}</DropdownMenuLabel>
+        {choices.length === 0 && <p className="px-2 py-1 text-xs text-muted-foreground">Nothing to choose</p>}
         {choices.map((c) => (
-          <label key={c.value} className="fopt">
-            <input type="checkbox" checked={values.includes(c.value)} onChange={() => onToggle(c.value)} /> {c.text}
-          </label>
+          <DropdownMenuCheckboxItem key={c.value} checked={values.includes(c.value)} onCheckedChange={() => onToggle(c.value)} onSelect={(e) => e.preventDefault()}>
+            {c.text}
+          </DropdownMenuCheckboxItem>
         ))}
-      </fieldset>
-    </details>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
 /** The sort and filter toolbar shared by the Board and Epics views. */
 export function ViewControls({ view, options, onChange, onClear, showEpic, showHideEmpty, compact, trailing }: P) {
   const id = useId();
-  const root = useRef<HTMLDivElement>(null);
-  const moreBtn = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState<string | null>(null);
   const [more, setMore] = useState(false);
   const n = activeCount(view);
   const set = (patch: Partial<ViewState>) => onChange({ ...view, ...patch });
   const toggle = (k: ListKey) => (value: string) =>
     set({ [k]: view[k].includes(value) ? view[k].filter((x) => x !== value) : [...view[k], value] } as Partial<ViewState>);
   const pristine = JSON.stringify(view) === JSON.stringify(DEFAULT_VIEW);
-  const moreOpen = !!compact && more;
-
-  // A click outside closes the open filter list, and the compact panel when the click is outside the toolbar.
-  useEffect(() => {
-    if (open === null && !moreOpen) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!root.current?.contains(t)) {
-        setOpen(null);
-        setMore(false);
-      } else if (!(t as Element).closest?.('.fgroup')) setOpen(null);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open, moreOpen]);
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape') return;
-    if (open !== null) {
-      e.preventDefault();
-      const summary = root.current?.querySelector<HTMLElement>('.fgroup[open] > summary');
-      setOpen(null);
-      summary?.focus();
-    } else if (moreOpen) {
-      e.preventDefault();
-      setMore(false);
-      moreBtn.current?.focus();
-    }
-  };
-
-  // Tabbing out of the open list closes it.
-  const onBlur = (e: FocusEvent) => {
-    const to = e.relatedTarget as Element | null;
-    if (open !== null && to && !to.closest('.fgroup[open]')) setOpen(null);
-  };
 
   const group = (label: string, k: ListKey, choices: { value: string; text: string }[]) => (
-    <Group label={label} values={view[k]} choices={choices} open={open === label} onToggleOpen={() => setOpen(open === label ? null : label)} onToggle={toggle(k)} />
+    <Group key={label} label={label} values={view[k]} choices={choices} onToggle={toggle(k)} />
   );
   const plain = (xs: string[]) => xs.map((t) => ({ value: t, text: t }));
+  const check = (on: boolean, label: string, onToggle: (v: boolean) => void, active = false) => (
+    <label className={cn(checkLabel, active && on && 'font-semibold text-foreground')}>
+      <input type="checkbox" className="accent-primary" checked={on} onChange={(e) => onToggle(e.target.checked)} /> {label}
+    </label>
+  );
 
   const rest = (
     <>
@@ -144,102 +109,87 @@ export function ViewControls({ view, options, onChange, onClear, showEpic, showH
       {group('Label', 'label', plain(options.labels))}
       {showEpic && (
         <>
-          <label className="vfield" htmlFor={`${id}-epic`}>
+          <label className={fieldLabel} htmlFor={`${id}-epic`}>
             Epic
           </label>
-          <select id={`${id}-epic`} value={view.epic ?? ''} onChange={(e) => set(e.target.value ? { epic: e.target.value } : { epic: undefined })}>
-            <option value="">Any epic</option>
-            <option value={NO_EPIC}>No epic</option>
+          <NativeSelect size="sm" id={`${id}-epic`} value={view.epic ?? ''} onChange={(e) => set(e.target.value ? { epic: e.target.value } : { epic: undefined })}>
+            <NativeSelectOption value="">Any epic</NativeSelectOption>
+            <NativeSelectOption value={NO_EPIC}>No epic</NativeSelectOption>
             {options.epics.map((e) => (
-              <option key={e} value={e} title={options.epicTitles[e] ? `${e} ${options.epicTitles[e]}` : e}>
+              <NativeSelectOption key={e} value={e} title={options.epicTitles[e] ? `${e} ${options.epicTitles[e]}` : e}>
                 {epicLabel(e, options.epicTitles)}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </>
       )}
-      <label className={`vcheck${view.ready ? ' active' : ''}`}>
-        <input type="checkbox" checked={view.ready} onChange={(e) => set({ ready: e.target.checked })} /> Ready only
-      </label>
-      <label className={`vcheck${view.blocked ? ' active' : ''}`}>
-        <input type="checkbox" checked={view.blocked} onChange={(e) => set({ blocked: e.target.checked })} /> Blocked only
-      </label>
-      <label className="vcheck">
-        <input type="checkbox" checked={view.hideClosed} onChange={(e) => set({ hideClosed: e.target.checked })} /> Hide closed
-      </label>
-      {showHideEmpty && (
-        <label className="vcheck">
-          <input type="checkbox" checked={view.hideEmptyEpics} onChange={(e) => set({ hideEmptyEpics: e.target.checked })} /> Hide epics with no matches
-        </label>
-      )}
+      {check(view.ready, 'Ready only', (v) => set({ ready: v }), true)}
+      {check(view.blocked, 'Blocked only', (v) => set({ blocked: v }), true)}
+      {check(view.hideClosed, 'Hide closed', (v) => set({ hideClosed: v }))}
+      {showHideEmpty && check(view.hideEmptyEpics, 'Hide epics with no matches', (v) => set({ hideEmptyEpics: v }))}
     </>
   );
 
   return (
-    <div ref={root} className={`vtools${compact ? ' compact' : ''}`} role="group" aria-label="Sort and filter" onKeyDown={onKeyDown} onBlur={onBlur}>
+    <div className={cn('vtools text-xs', compact && 'compact')} role="group" aria-label="Sort and filter">
       <div className="vrow">
-        <label className="vfield" htmlFor={`${id}-sort`}>
+        <label className={fieldLabel} htmlFor={`${id}-sort`}>
           Sort
         </label>
-        <select id={`${id}-sort`} value={view.sort} onChange={(e) => set({ sort: e.target.value as SortKey })}>
+        <NativeSelect size="sm" id={`${id}-sort`} value={view.sort} onChange={(e) => set({ sort: e.target.value as SortKey })}>
           {SORT_KEYS.map((k) => (
-            <option key={k} value={k}>{SORT_LABELS[k]}</option>
+            <NativeSelectOption key={k} value={k}>{SORT_LABELS[k]}</NativeSelectOption>
           ))}
-        </select>
-        <button
+        </NativeSelect>
+        <Button
           type="button"
-          className="sbtn"
+          variant="outline"
+          size="xs"
           onClick={() => set({ dir: view.dir === 'asc' ? 'desc' : 'asc' })}
           aria-label={`Sort direction: ${view.dir === 'asc' ? 'ascending' : 'descending'}. Activate to reverse.`}
         >
           {view.dir === 'asc' ? '↑ Asc' : '↓ Desc'}
-        </button>
-        <input
+        </Button>
+        <Input
           type="search"
-          className="vtext"
+          className="h-7 w-[150px] text-xs md:text-xs"
           aria-label="Filter by id or title"
           placeholder="Filter id or title"
           value={view.text}
           onChange={(e) => set({ text: e.target.value })}
         />
         {compact ? (
-          <button
-            ref={moreBtn}
-            type="button"
-            className={`sbtn${n > 0 ? ' on' : ''}`}
-            aria-expanded={moreOpen}
-            aria-controls={`${id}-more`}
-            onClick={() => {
-              setMore(!moreOpen);
-              setOpen(null);
-            }}
-          >
-            {n === 0 ? 'Filters' : n === 1 ? '1 filter' : `${n} filters`}
-          </button>
+          <Popover open={more} onOpenChange={setMore}>
+            <PopoverTrigger asChild>
+              <Button type="button" variant={n > 0 ? 'secondary' : 'outline'} size="xs" className={cn(n > 0 && 'font-semibold')}>
+                {n === 0 ? 'Filters' : n === 1 ? '1 filter' : `${n} filters`}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto max-w-[calc(100vw-28px)] flex-row flex-wrap items-center gap-x-2 gap-y-1.5 text-xs" aria-label="Filters">
+              {rest}
+            </PopoverContent>
+          </Popover>
         ) : (
           rest
         )}
         <span className="spacer" />
-        <span className={compact ? 'sr-only' : 'vstat small mu'} aria-live="polite">
+        <span className={compact ? 'sr-only' : 'whitespace-nowrap text-muted-foreground'} aria-live="polite">
           {n === 0 ? 'No filters' : n === 1 ? '1 filter active' : `${n} filters active`}
         </span>
         {trailing}
-        <button
+        <Button
           type="button"
-          className="sbtn"
+          variant="outline"
+          size="xs"
+          className="aria-disabled:opacity-45"
           aria-disabled={pristine ? 'true' : undefined}
           onClick={() => {
             if (!pristine) onClear(); // stays focusable when there is nothing to clear
           }}
         >
           Clear
-        </button>
+        </Button>
       </div>
-      {moreOpen && (
-        <div className="vmore" id={`${id}-more`}>
-          {rest}
-        </div>
-      )}
     </div>
   );
 }

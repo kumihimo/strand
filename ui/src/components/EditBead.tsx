@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { cn } from 'cn';
 import type { BeadDetail, Epic } from '../../../src/cockpit/model.ts';
 import { ApiError, StaleBeadError, approveSpec, editBead, getBead, getEpics } from '../api.ts';
 import {
@@ -24,7 +25,13 @@ import {
   type EditProblems,
 } from '../lib/detail.ts';
 import { ACCEPTANCE_PLACEHOLDER, ALL_TYPES, DESCRIPTION_PLACEHOLDER, NO_PARENT_OPTION, PRIORITIES, TYPE_GROUPS } from '../lib/views.ts';
+import { FieldError, FieldLabel, fieldGap } from './form.tsx';
 import { RepoPicker } from './NewBead.tsx';
+import { Button } from './ui/button.tsx';
+import { Input } from './ui/input.tsx';
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from './ui/native-select.tsx';
+import { Sheet, SheetContent, SheetTitle } from './ui/sheet.tsx';
+import { Textarea } from './ui/textarea.tsx';
 
 /** What the Spec tab shows once the form closes. */
 export type EditOutcome = {
@@ -59,6 +66,11 @@ function serverField(message: string): Field | undefined {
   return undefined;
 }
 
+const actions = 'flex flex-wrap items-center gap-2 py-2';
+const preBox = 'my-1 max-h-[180px] overflow-auto whitespace-pre-wrap rounded-lg border bg-muted px-2.5 py-2 font-mono text-xs [overflow-wrap:anywhere]';
+/** Fixed height from `rows`, resizable by hand. */
+const area = 'field-sizing-fixed resize-y';
+
 const FIELD_ORDER: Field[] = ['title', 'description', 'acceptance', 'type', 'parent', 'repos'];
 
 const shown = (c: ConflictField['theirs'], field: DraftField): string => {
@@ -67,7 +79,10 @@ const shown = (c: ConflictField['theirs'], field: DraftField): string => {
   return String(c) || '(empty)';
 };
 
-/** The spec form. It replaces the Spec tab's read view; the caller puts focus back on its Edit button on close. */
+/**
+ * The spec form, in a sheet over the page: focus is kept inside it, Esc asks before it drops a draft.
+ * The caller puts focus back on its Edit button on close.
+ */
 export function EditBead({ d, onClose, onDirty }: P) {
   // The bead the draft started from. A rebase moves it to the newer bead.
   const [base, setBase] = useState(d);
@@ -100,7 +115,6 @@ export function EditBead({ d, onClose, onDirty }: P) {
   const lastField = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    titleRef.current?.focus();
     let live = true;
     // Without the list the select still holds the current parent, so a save is not blocked.
     getEpics().then((e) => live && setEpics(e), () => undefined);
@@ -265,9 +279,9 @@ export function EditBead({ d, onClose, onDirty }: P) {
   /** Cancel and Esc: ask once when there is something to lose. */
   const requestClose = () => (dirty ? setConfirming(true) : onClose());
 
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape' || busyRef.current) return;
-    e.preventDefault();
+  /** Esc in the sheet: never closes it outright. It closes the discard prompt, or asks for one when there is a draft. */
+  const onEscape = () => {
+    if (busyRef.current) return;
     if (confirming) keepEditing();
     else requestClose();
   };
@@ -295,7 +309,7 @@ export function EditBead({ d, onClose, onDirty }: P) {
   };
   const keepMine = (c: ConflictField) => setConflicts((cs) => cs.filter((x) => x.field !== c.field));
 
-  const err = (k: Field) => (errors[k] ? <div id={`eb-${k}-err`} className="ferr" role="alert">{errors[k]}</div> : null);
+  const err = (k: Field) => (errors[k] ? <FieldError id={`eb-${k}-err`} alert>{errors[k]}</FieldError> : null);
   const aria = (k: Field, extra?: string) => ({
     'aria-invalid': !!errors[k],
     'aria-describedby': [errors[k] ? `eb-${k}-err` : '', extra ?? ''].filter(Boolean).join(' ') || undefined,
@@ -306,55 +320,72 @@ export function EditBead({ d, onClose, onDirty }: P) {
   const hasParentOption = !currentParent || parents.some((e) => e.id === currentParent);
 
   return (
+    <Sheet open onOpenChange={(o) => !o && onEscape()}>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        className="w-full gap-0 overflow-auto p-4 sm:max-w-[640px] data-[side=right]:sm:max-w-[640px]"
+        aria-describedby={undefined}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          titleRef.current?.focus();
+        }}
+        onEscapeKeyDown={(e) => {
+          e.preventDefault();
+          onEscape();
+        }}
+        // The draft is not lost to a stray click: only Cancel, Esc and the buttons close the sheet.
+        onInteractOutside={(e) => e.preventDefault()}
+      >
+    <SheetTitle className="mb-3 text-base">Edit <span className="font-mono">{base.id}</span></SheetTitle>
     <form
-      className="editform"
       onSubmit={onSubmit}
-      onKeyDown={onKey}
       onFocus={(e) => {
         const t = e.target;
         if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement) lastField.current = t;
       }}
       noValidate aria-busy={busy} aria-label={`Edit ${base.id}`}>
       {(notice || conflicts.length > 0) && (
-        <div className="stale" role="alert">
-          {staleLines(notice?.taken ?? []).map((l) => <p key={l}>{l}</p>)}
+        <div className="mb-2.5 rounded-lg border border-amber-400 px-2.5 py-2" role="alert">
+          {staleLines(notice?.taken ?? []).map((l) => <p key={l} className="mb-1">{l}</p>)}
           {conflicts.map((c) => {
             const label = FIELD_LABEL[c.field];
             const dropped = c.field === 'acceptance' ? droppedCriteria(String(c.mine), String(c.theirs)) : [];
             return (
-              <div key={c.field} className="conflict">
-                <p>{conflictSentence(c.field)}</p>
+              <div key={c.field} className="mt-1.5 border-t pt-1.5">
+                <p className="mb-1">{conflictSentence(c.field)}</p>
                 <details open>
-                  <summary>Newer {label}</summary>
-                  <pre className="design">{shown(c.theirs, c.field)}</pre>
+                  <summary className="cursor-pointer">Newer {label}</summary>
+                  <pre className={preBox}>{shown(c.theirs, c.field)}</pre>
                 </details>
-                <div className="actions">
-                  <button type="button" className="btn" onClick={() => useTheirs(c)}>Use the newer {label}</button>
-                  <button type="button" className="btn ghost" onClick={() => keepMine(c)}>Keep mine</button>
+                <div className={actions}>
+                  <Button type="button" onClick={() => useTheirs(c)}>Use the newer {label}</Button>
+                  <Button type="button" variant="outline" onClick={() => keepMine(c)}>Keep mine</Button>
                 </div>
                 {dropped.length > 0 && (
-                  <div className="mu">
-                    <p>Keep mine removes {dropped.length} {dropped.length === 1 ? 'criterion' : 'criteria'} the newer version has:</p>
-                    <pre className="design">{dropped.join('\n')}</pre>
+                  <div className="text-muted-foreground">
+                    <p className="mb-1">Keep mine removes {dropped.length} {dropped.length === 1 ? 'criterion' : 'criteria'} the newer version has:</p>
+                    <pre className={preBox}>{dropped.join('\n')}</pre>
                   </div>
                 )}
               </div>
             );
           })}
-          <div className="actions">
-            {newest && <button type="button" className="btn ghost" onClick={loadNewer}>Load the newer version</button>}
-            {conflicts.length === 0 && <button type="button" className="btn ghost" onClick={() => setNotice(undefined)}>Dismiss</button>}
+          <div className={actions}>
+            {newest && <Button type="button" variant="outline" onClick={loadNewer}>Load the newer version</Button>}
+            {conflicts.length === 0 && <Button type="button" variant="outline" onClick={() => setNotice(undefined)}>Dismiss</Button>}
           </div>
         </div>
       )}
 
-      <label className="lbl" htmlFor="eb-title">Title</label>
-      <input id="eb-title" ref={titleRef} value={draft.title} onChange={(e) => set('title', e.target.value)} {...aria('title')} />
+      <FieldLabel htmlFor="eb-title">Title</FieldLabel>
+      <Input id="eb-title" ref={titleRef} className={fieldGap} value={draft.title} onChange={(e) => set('title', e.target.value)} {...aria('title')} />
       {err('title')}
 
-      <label className="lbl" htmlFor="eb-description">Description</label>
-      <textarea
+      <FieldLabel htmlFor="eb-description">Description</FieldLabel>
+      <Textarea
         id="eb-description"
+        className={cn(area, fieldGap)}
         value={draft.description}
         onChange={(e) => set('description', e.target.value)}
         rows={3}
@@ -363,11 +394,12 @@ export function EditBead({ d, onClose, onDirty }: P) {
       />
       {err('description')}
 
-      <label className="lbl" htmlFor="eb-acceptance">
-        Acceptance criteria <span className="mu">{approved ? '(one per line, each names its check)' : '(free text until the spec is approved)'}</span>
-      </label>
-      <textarea
+      <FieldLabel htmlFor="eb-acceptance">
+        Acceptance criteria <span className="normal-case">{approved ? '(one per line, each names its check)' : '(free text until the spec is approved)'}</span>
+      </FieldLabel>
+      <Textarea
         id="eb-acceptance"
+        className={cn(area, 'font-mono text-[12.5px] md:text-[12.5px]')}
         value={draft.acceptance}
         onChange={(e) => set('acceptance', e.target.value)}
         rows={5}
@@ -376,81 +408,82 @@ export function EditBead({ d, onClose, onDirty }: P) {
         {...aria('acceptance', 'eb-acceptance-note')}
       />
       {err('acceptance')}
-      <p id="eb-acceptance-note" className="mu small">
+      <p id="eb-acceptance-note" className={cn('mt-1 text-xs text-muted-foreground', fieldGap)}>
         Ticks and evidence stay on a criterion whose text and check are unchanged. A changed criterion is unticked.
         {!approved && ' Approve spec needs every line in the form shown.'}
       </p>
-      {prose && <p className="wa small">Lines that are not criteria will be removed when you save.</p>}
+      {prose && <p className={cn('text-xs text-amber-700', fieldGap)}>Lines that are not criteria will be removed when you save.</p>}
 
-      <label className="lbl" htmlFor="eb-design">Spec body <span className="mu">({base.specFormat})</span></label>
-      <textarea id="eb-design" value={draft.design} onChange={(e) => set('design', e.target.value)} rows={8} />
+      <FieldLabel htmlFor="eb-design">Spec body <span className="normal-case">({base.specFormat})</span></FieldLabel>
+      <Textarea id="eb-design" className={cn(area, 'font-mono text-[12.5px] md:text-[12.5px]', fieldGap)} value={draft.design} onChange={(e) => set('design', e.target.value)} rows={8} />
 
-      <div className="row">
-        <div>
-          <label className="lbl" htmlFor="eb-type">Type</label>
-          <select id="eb-type" value={draft.type} onChange={(e) => set('type', e.target.value)} {...aria('type')}>
-            {!ALL_TYPES.includes(draft.type) && <option value={draft.type}>{draft.type}</option>}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className={fieldGap}>
+          <FieldLabel htmlFor="eb-type">Type</FieldLabel>
+          <NativeSelect className="w-full" id="eb-type" value={draft.type} onChange={(e) => set('type', e.target.value)} {...aria('type')}>
+            {!ALL_TYPES.includes(draft.type) && <NativeSelectOption value={draft.type}>{draft.type}</NativeSelectOption>}
             {TYPE_GROUPS.map(([group, types]) => (
-              <optgroup key={group} label={group}>
-                {types.map((t) => <option key={t} value={t}>{t}</option>)}
-              </optgroup>
+              <NativeSelectOptGroup key={group} label={group}>
+                {types.map((t) => <NativeSelectOption key={t} value={t}>{t}</NativeSelectOption>)}
+              </NativeSelectOptGroup>
             ))}
-          </select>
+          </NativeSelect>
           {err('type')}
         </div>
-        <div>
-          <label className="lbl" htmlFor="eb-priority">Priority</label>
-          <select id="eb-priority" value={draft.priority} onChange={(e) => set('priority', Number(e.target.value))}>
-            {PRIORITIES.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
-          </select>
+        <div className={fieldGap}>
+          <FieldLabel htmlFor="eb-priority">Priority</FieldLabel>
+          <NativeSelect className="w-full" id="eb-priority" value={draft.priority} onChange={(e) => set('priority', Number(e.target.value))}>
+            {PRIORITIES.map(([n, label]) => <NativeSelectOption key={n} value={n}>{label}</NativeSelectOption>)}
+          </NativeSelect>
         </div>
-        <div>
-          <label className="lbl" htmlFor="eb-parent">Parent epic {draft.type === 'epic' && <span className="mu">(none for an epic)</span>}</label>
-          <select id="eb-parent" value={draft.parent} onChange={(e) => set('parent', e.target.value)} {...aria('parent')}>
-            <option value="">{NO_PARENT_OPTION}</option>
-            {!hasParentOption && <option value={currentParent}>{currentParent}</option>}
+        <div className={fieldGap}>
+          <FieldLabel htmlFor="eb-parent">Parent epic {draft.type === 'epic' && <span className="normal-case">(none for an epic)</span>}</FieldLabel>
+          <NativeSelect className="w-full" id="eb-parent" value={draft.parent} onChange={(e) => set('parent', e.target.value)} {...aria('parent')}>
+            <NativeSelectOption value="">{NO_PARENT_OPTION}</NativeSelectOption>
+            {!hasParentOption && <NativeSelectOption value={currentParent}>{currentParent}</NativeSelectOption>}
             {parents.map((e) => (
-              <option key={e.id} value={e.id}>{e.id} {e.title}</option>
+              <NativeSelectOption key={e.id} value={e.id}>{e.id} {e.title}</NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
           {err('parent')}
         </div>
       </div>
 
-      <label className="lbl" id="eb-repos-lbl" htmlFor="eb-repos">Repos <span className="mu">(first ticked is the primary)</span></label>
+      <FieldLabel id="eb-repos-lbl" htmlFor="eb-repos">Repos <span className="normal-case">(first ticked is the primary)</span></FieldLabel>
       <RepoPicker id="eb-repos" value={draft.repos} onChange={(r) => set('repos', r)} error={errors.repos} />
 
-      {formError && <div className="ferr" role="alert">{formError}</div>}
+      {formError && <FieldError alert>{formError}</FieldError>}
 
       {confirming && (
-        <div className="stale" role="alert">
-          <p>Discard your changes?</p>
-          <div className="actions">
-            <button ref={keepRef} type="button" className="btn" onClick={keepEditing}>Keep editing</button>
-            <button type="button" className="btn ghost" onClick={() => onClose()}>Discard</button>
+        <div className="mb-2.5 rounded-lg border border-amber-400 px-2.5 py-2" role="alert">
+          <p className="mb-1">Discard your changes?</p>
+          <div className={actions}>
+            <Button ref={keepRef} type="button" onClick={keepEditing}>Keep editing</Button>
+            <Button type="button" variant="outline" onClick={() => onClose()}>Discard</Button>
           </div>
         </div>
       )}
 
-      <div className="actions">
-        <button type="submit" className="btn" disabled={busy || !!blocked} aria-describedby={blocked ? 'eb-blocked' : undefined}>
+      <div className={actions}>
+        <Button type="submit" disabled={busy || !!blocked} aria-describedby={blocked ? 'eb-blocked' : undefined}>
           {busy ? 'Saving…' : 'Save'}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="btn"
           disabled={busy || !approve.enabled || !!blocked}
           aria-describedby={blocked ? 'eb-blocked' : approve.reason ? 'eb-approve-why' : undefined}
           onClick={() => submit(true)}
         >
           Save and approve
-        </button>
-        <button type="button" className="btn ghost" disabled={busy} onClick={requestClose}>Cancel</button>
-        {blocked && <span id="eb-blocked" className="wa">{blocked}</span>}
-        {!blocked && approve.reason && base.stage === 'specify' && <span id="eb-approve-why" className="mu">{approve.reason}</span>}
+        </Button>
+        <Button type="button" variant="outline" disabled={busy} onClick={requestClose}>Cancel</Button>
+        {blocked && <span id="eb-blocked" className="text-amber-700">{blocked}</span>}
+        {!blocked && approve.reason && base.stage === 'specify' && <span id="eb-approve-why" className="text-muted-foreground">{approve.reason}</span>}
         {/* From the bead as the page has it now, not as the form opened. */}
-        {approve.enabled && d.wipWarning && <span className="wa" role="status">{d.wipWarning}</span>}
+        {approve.enabled && d.wipWarning && <span className="text-amber-700" role="status">{d.wipWarning}</span>}
       </div>
     </form>
+      </SheetContent>
+    </Sheet>
   );
 }

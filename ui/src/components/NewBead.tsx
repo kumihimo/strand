@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { cn } from 'cn';
 import type { Epic } from '../../../src/cockpit/model.ts';
 import { defaultSpecFormat } from '../../../src/core/spec.ts';
 import { createBead, getEpics, getRepos, refreshRepos } from '../api.ts';
@@ -23,6 +24,13 @@ import {
   type NewBeadErrors,
   type NewBeadForm,
 } from '../lib/views.ts';
+import { FieldError, FieldLabel, fieldGap } from './form.tsx';
+import { Pill } from './Pill.tsx';
+import { Button } from './ui/button.tsx';
+import { Dialog, DialogContent, DialogTitle } from './ui/dialog.tsx';
+import { Input } from './ui/input.tsx';
+import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from './ui/native-select.tsx';
+import { Textarea } from './ui/textarea.tsx';
 
 type P = { onClose: () => void; onCreated: (id: string) => void };
 
@@ -65,52 +73,56 @@ export function RepoPicker({ id, value, onChange, error }: { id: string; value: 
   const shown = filterRepos(all, query);
   // Enter in the filter box must not submit the form around it.
   return (
-    <div className="repos" role="group" aria-labelledby={`${id}-lbl`} aria-describedby={error ? `${id}-err` : undefined}>
-      <div className="rhead">
-        <input
+    <div className={cn('rounded-lg border px-2 py-1.5', fieldGap)} role="group" aria-labelledby={`${id}-lbl`} aria-describedby={error ? `${id}-err` : undefined}>
+      <div className="flex items-center gap-1.5">
+        <Input
           id={id}
           type="search"
+          className="h-7 flex-1"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
           placeholder="Filter repos"
           aria-label="Filter repos"
         />
-        <button type="button" className="sbtn" disabled={busy} onClick={refresh} title="Read the workspace folders again">
+        <Button type="button" variant="outline" size="xs" disabled={busy} onClick={refresh} title="Read the workspace folders again">
           {busy ? 'Reading…' : 'Refresh'}
-        </button>
+        </Button>
       </div>
-      {loadError && <div className="ferr">Repos unavailable: {loadError}</div>}
-      {!repos && !loadError && <p className="mu note">Loading repos…</p>}
-      <ul>
+      {loadError && <div className="mt-1.5 text-xs text-destructive">Repos unavailable: {loadError}</div>}
+      {!repos && !loadError && <p className="mt-1.5 text-xs text-muted-foreground">Loading repos…</p>}
+      <ul className="mt-1.5 max-h-[150px] overflow-auto">
         {shown.map((r) => {
           const on = ticked.includes(r);
           const primary = value[0] === r;
           return (
-            <li key={r}>
-              <label className="mono">
-                <input type="checkbox" checked={on} onChange={() => onChange(toggleRepo(value, r))} />
+            <li key={r} className="flex items-center gap-1.5 py-px text-[12.5px]">
+              <label className="flex min-w-0 flex-1 items-center gap-1.5 font-mono [overflow-wrap:anywhere]">
+                <input type="checkbox" className="accent-primary" checked={on} onChange={() => onChange(toggleRepo(value, r))} />
                 {r}
               </label>
-              {primary && <span className="pill">primary</span>}
+              {primary && <Pill>primary</Pill>}
               {on && !primary && (
-                <button type="button" className="sbtn" onClick={() => onChange(makePrimary(value, r))}>
+                <Button type="button" variant="outline" size="xs" onClick={() => onChange(makePrimary(value, r))}>
                   Make primary
-                </button>
+                </Button>
               )}
             </li>
           );
         })}
-        {repos && shown.length === 0 && <li className="mu">No repo matches.</li>}
+        {repos && shown.length === 0 && <li className="text-muted-foreground">No repo matches.</li>}
       </ul>
-      {ticked.length === 0 && <p className="wa note">{NO_REPO_NOTE}</p>}
-      {lacksPrimary(value) && !error && <p className="wa note">{NEEDS_PRIMARY}</p>}
-      {error && <div id={`${id}-err`} className="ferr">{error}</div>}
+      {ticked.length === 0 && <p className="mt-1.5 text-xs text-amber-700">{NO_REPO_NOTE}</p>}
+      {lacksPrimary(value) && !error && <p className="mt-1.5 text-xs text-amber-700">{NEEDS_PRIMARY}</p>}
+      {error && <div id={`${id}-err`} className="mt-1.5 text-xs text-destructive">{error}</div>}
     </div>
   );
 }
 
-/** The New bead dialog: focus starts on the title; Esc closes; Enter submits. The caller restores focus on close. */
+/**
+ * The New bead dialog: focus starts on the title and is kept inside (Radix); Esc closes; Enter submits.
+ * The caller restores focus on close.
+ */
 export function NewBead({ onClose, onCreated }: P) {
   const [form, setForm] = useState<NewBeadForm>(emptyForm);
   const [errors, setErrors] = useState<NewBeadErrors>({});
@@ -124,22 +136,8 @@ export function NewBead({ onClose, onCreated }: P) {
   const [epics, setEpics] = useState<Epic[]>();
   const [epicsError, setEpicsError] = useState<string>();
   const titleRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useRef<HTMLFormElement>(null);
-
-  // Esc closes from anywhere while the dialog is open, not only when focus is inside it.
-  useEffect(() => {
-    const onEsc = (e: globalThis.KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.preventDefault();
-      // While a create is in flight the dialog cannot be dismissed: the bead is being made either way.
-      if (!busyRef.current) onClose();
-    };
-    document.addEventListener('keydown', onEsc);
-    return () => document.removeEventListener('keydown', onEsc);
-  }, [onClose]);
 
   useEffect(() => {
-    titleRef.current?.focus();
     let live = true;
     getEpics().then(
       (e) => live && setEpics(e),
@@ -181,124 +179,126 @@ export function NewBead({ onClose, onCreated }: P) {
       submit();
       return;
     }
-    if (e.key === 'Tab' && dialogRef.current) {
-      // Keep focus inside the dialog.
-      const f = [...dialogRef.current.querySelectorAll<HTMLElement>('input, select, textarea, button')].filter((x) => !(x as HTMLButtonElement).disabled);
-      if (!f.length) return;
-      const first = f[0];
-      const last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
   };
 
-  const err = (k: keyof NewBeadErrors, id: string) =>
-    errors[k] ? <div id={id} className="ferr">{errors[k]}</div> : null;
+  const err = (k: keyof NewBeadErrors, id: string) => (errors[k] ? <FieldError id={id}>{errors[k]}</FieldError> : null);
 
   return (
-    <div className="modal" onMouseDown={(e) => e.target === e.currentTarget && !busyRef.current && !formTouched(form) && onClose()}>
-      <form ref={dialogRef} className="dialog" role="dialog" aria-modal="true" aria-labelledby="nb-h" aria-busy={busy} onSubmit={submit} onKeyDown={onKey} noValidate>
-        <h3 id="nb-h">
-          New bead <span className="mono mu small">bd create</span>
-        </h3>
+    <Dialog open onOpenChange={(o) => !o && !busyRef.current && onClose()}>
+      <DialogContent
+        className="max-h-[94vh] overflow-auto sm:max-w-[600px]"
+        aria-describedby={undefined}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          titleRef.current?.focus();
+        }}
+        // While a create is in flight the dialog cannot be dismissed: the bead is being made either way.
+        onEscapeKeyDown={(e) => busyRef.current && e.preventDefault()}
+        // A click outside closes only an untouched form.
+        onInteractOutside={(e) => (busyRef.current || formTouched(form)) && e.preventDefault()}
+      >
+        <form aria-busy={busy} onSubmit={submit} onKeyDown={onKey} noValidate>
+          <DialogTitle className="mb-2.5">
+            New bead <span className="font-mono text-xs font-normal text-muted-foreground">bd create</span>
+          </DialogTitle>
 
-        <label className="lbl" htmlFor="nb-title">Title</label>
-        <input
-          id="nb-title"
-          ref={titleRef}
-          value={form.title}
-          onChange={(e) => set('title', e.target.value)}
-          placeholder="What needs doing"
-          maxLength={TITLE_MAX}
-          aria-invalid={!!errors.title}
-          aria-describedby={errors.title ? 'nb-title-err' : undefined}
-        />
-        {err('title', 'nb-title-err')}
+          <FieldLabel htmlFor="nb-title">Title</FieldLabel>
+          <Input
+            id="nb-title"
+            ref={titleRef}
+            className={fieldGap}
+            value={form.title}
+            onChange={(e) => set('title', e.target.value)}
+            placeholder="What needs doing"
+            maxLength={TITLE_MAX}
+            aria-invalid={!!errors.title}
+            aria-describedby={errors.title ? 'nb-title-err' : undefined}
+          />
+          {err('title', 'nb-title-err')}
 
-        <label className="lbl" htmlFor="nb-desc">Description <span className="mu">(optional)</span></label>
-        <textarea
-          id="nb-desc"
-          value={form.description}
-          onChange={(e) => set('description', e.target.value)}
-          rows={3}
-          placeholder={DESCRIPTION_PLACEHOLDER}
-        />
+          <FieldLabel htmlFor="nb-desc">Description <span className="normal-case">(optional)</span></FieldLabel>
+          <Textarea
+            id="nb-desc"
+            className={cn('field-sizing-fixed resize-y', fieldGap)}
+            value={form.description}
+            onChange={(e) => set('description', e.target.value)}
+            rows={3}
+            placeholder={DESCRIPTION_PLACEHOLDER}
+          />
 
-        <label className="lbl" htmlFor="nb-accept">Acceptance criteria <span className="mu">(optional, free text for now)</span></label>
-        <textarea
-          id="nb-accept"
-          value={form.acceptance}
-          onChange={(e) => set('acceptance', e.target.value)}
-          rows={4}
-          spellCheck={false}
-          placeholder={ACCEPTANCE_PLACEHOLDER}
-          aria-describedby="nb-accept-note"
-        />
-        <p id="nb-accept-note" className="mu small">Approve spec needs the story line and one criterion per line in the form shown.</p>
+          <FieldLabel htmlFor="nb-accept">Acceptance criteria <span className="normal-case">(optional, free text for now)</span></FieldLabel>
+          <Textarea
+            id="nb-accept"
+            className="field-sizing-fixed resize-y font-mono text-[12.5px] md:text-[12.5px]"
+            value={form.acceptance}
+            onChange={(e) => set('acceptance', e.target.value)}
+            rows={4}
+            spellCheck={false}
+            placeholder={ACCEPTANCE_PLACEHOLDER}
+            aria-describedby="nb-accept-note"
+          />
+          <p id="nb-accept-note" className={cn('mt-1 text-xs text-muted-foreground', fieldGap)}>Approve spec needs the story line and one criterion per line in the form shown.</p>
 
-        <div className="row two">
-          <div>
-            <label className="lbl" htmlFor="nb-type">Type</label>
-            <select id="nb-type" value={form.type} onChange={(e) => set('type', e.target.value)} aria-invalid={!!errors.type}>
-              {TYPE_GROUPS.map(([group, types]) => (
-                <optgroup key={group} label={group}>
-                  {types.map((t) => <option key={t} value={t}>{t}</option>)}
-                </optgroup>
-              ))}
-            </select>
-            {err('type', 'nb-type-err')}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className={fieldGap}>
+              <FieldLabel htmlFor="nb-type">Type</FieldLabel>
+              <NativeSelect className="w-full" id="nb-type" value={form.type} onChange={(e) => set('type', e.target.value)} aria-invalid={!!errors.type}>
+                {TYPE_GROUPS.map(([group, types]) => (
+                  <NativeSelectOptGroup key={group} label={group}>
+                    {types.map((t) => <NativeSelectOption key={t} value={t}>{t}</NativeSelectOption>)}
+                  </NativeSelectOptGroup>
+                ))}
+              </NativeSelect>
+              {err('type', 'nb-type-err')}
+            </div>
+            <div className={fieldGap}>
+              <FieldLabel htmlFor="nb-spec">Spec format</FieldLabel>
+              <output id="nb-spec" className="block h-8 rounded-lg border bg-muted px-2.5 py-1.5 font-mono" title="Default for this type; changing it is not in the MVP">
+                {defaultSpecFormat(form.type)} <span className="text-muted-foreground">(default)</span>
+              </output>
+            </div>
           </div>
-          <div>
-            <label className="lbl" htmlFor="nb-spec">Spec format</label>
-            <output id="nb-spec" className="ro mono" title="Default for this type; changing it is not in the MVP">
-              {defaultSpecFormat(form.type)} <span className="mu">(default)</span>
-            </output>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className={fieldGap}>
+              <FieldLabel htmlFor="nb-pri">Priority</FieldLabel>
+              <NativeSelect className="w-full" id="nb-pri" value={form.priority} onChange={(e) => set('priority', Number(e.target.value))}>
+                {PRIORITIES.map(([n, label]) => <NativeSelectOption key={n} value={n}>{label}</NativeSelectOption>)}
+              </NativeSelect>
+              {err('priority', 'nb-pri-err')}
+            </div>
+            <div className={fieldGap}>
+              <FieldLabel htmlFor="nb-parent">Parent epic {form.type === 'epic' && <span className="normal-case">(none for an epic)</span>}</FieldLabel>
+              <NativeSelect
+                className="w-full"
+                id="nb-parent"
+                value={form.parent}
+                onChange={(e) => set('parent', e.target.value)}
+                disabled={!epics && !epicsError}
+                aria-invalid={!!errors.parent}
+                aria-describedby={errors.parent ? 'nb-parent-err' : undefined}
+              >
+                <NativeSelectOption value="">{NO_PARENT_OPTION}</NativeSelectOption>
+                {(epics ?? []).map((e) => (
+                  <NativeSelectOption key={e.id} value={e.id}>{e.id} {e.title}</NativeSelectOption>
+                ))}
+              </NativeSelect>
+              {err('parent', 'nb-parent-err')}
+              {epicsError && <div className="mt-1 text-xs text-destructive">Epics unavailable: {epicsError}</div>}
+            </div>
           </div>
-        </div>
 
-        <div className="row two">
-          <div>
-            <label className="lbl" htmlFor="nb-pri">Priority</label>
-            <select id="nb-pri" value={form.priority} onChange={(e) => set('priority', Number(e.target.value))}>
-              {PRIORITIES.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
-            </select>
-            {err('priority', 'nb-pri-err')}
+          <FieldLabel id="nb-repos-lbl" htmlFor="nb-repos">Repos <span className="normal-case">(first ticked is the primary)</span></FieldLabel>
+          <RepoPicker id="nb-repos" value={form.repos} onChange={(r) => set('repos', r)} error={errors.repos} />
+
+          {serverError && <FieldError alert>{serverError}</FieldError>}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+            <Button type="submit" disabled={busy}>{busy ? 'Creating…' : 'Create'}</Button>
           </div>
-          <div>
-            <label className="lbl" htmlFor="nb-parent">Parent epic {form.type === 'epic' && <span className="mu">(none for an epic)</span>}</label>
-            <select
-              id="nb-parent"
-              value={form.parent}
-              onChange={(e) => set('parent', e.target.value)}
-              disabled={!epics && !epicsError}
-              aria-invalid={!!errors.parent}
-              aria-describedby={errors.parent ? 'nb-parent-err' : undefined}
-            >
-              <option value="">{NO_PARENT_OPTION}</option>
-              {(epics ?? []).map((e) => (
-                <option key={e.id} value={e.id}>{e.id} {e.title}</option>
-              ))}
-            </select>
-            {err('parent', 'nb-parent-err')}
-            {epicsError && <div className="ferr">Epics unavailable: {epicsError}</div>}
-          </div>
-        </div>
-
-        <label className="lbl" id="nb-repos-lbl" htmlFor="nb-repos">Repos <span className="mu">(first ticked is the primary)</span></label>
-        <RepoPicker id="nb-repos" value={form.repos} onChange={(r) => set('repos', r)} error={errors.repos} />
-
-        {serverError && <div className="ferr" role="alert">{serverError}</div>}
-
-        <div className="actions end">
-          <button type="button" className="btn ghost" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="submit" className="btn" disabled={busy}>{busy ? 'Creating…' : 'Create'}</button>
-        </div>
-      </form>
-    </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

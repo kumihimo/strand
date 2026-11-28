@@ -3,6 +3,9 @@ import type { TerminalInfo } from '../../src/cockpit/pty.ts';
 import { ApiError, getBoard, getTerminals, type TerminalList } from './api.ts';
 import { notifyChanged, useOnChanged } from './changes.ts';
 import { NewBead } from './components/NewBead.tsx';
+import { Alert, AlertAction, AlertDescription } from './components/ui/alert.tsx';
+import { Button } from './components/ui/button.tsx';
+import { TooltipProvider } from './components/ui/tooltip.tsx';
 import { boardHref } from './lib/route.ts';
 import { acceptResult } from './lib/detail.ts';
 import { layoutClasses } from './lib/drawer.ts';
@@ -124,27 +127,31 @@ export function App() {
   );
 
   return (
-    <>
-      <header>
-        <h1>Strand</h1>
-        <nav style={{ display: 'flex', gap: 4 }}>
+    <TooltipProvider delayDuration={300}>
+      <header className="appbar">
+        <h1 className="text-[15px] font-semibold whitespace-nowrap">Strand</h1>
+        <nav aria-label="Views">
           {TABS.map(([view, label]) => (
-            <a key={view} href={`#/${view}`} className={`tab${route.view === view ? ' on' : ''}`} aria-current={route.view === view ? 'page' : undefined} style={{ textDecoration: 'none' }}>
-              {label}
-              {view === 'review' && counts ? ` (${counts.review})` : ''}
-              {view === 'board' && counts && counts.approve > 0 ? ` (${counts.approve} to approve)` : ''}
-            </a>
+            <Button key={view} asChild variant={route.view === view ? 'secondary' : 'ghost'} size="sm" className={route.view === view ? 'font-semibold' : 'text-muted-foreground'}>
+              <a href={`#/${view}`} aria-current={route.view === view ? 'page' : undefined}>
+                {label}
+                {view === 'review' && counts ? ` (${counts.review})` : ''}
+                {view === 'board' && counts && counts.approve > 0 ? ` (${counts.approve} to approve)` : ''}
+              </a>
+            </Button>
           ))}
         </nav>
         <span className="spacer" />
         <SessionsMenu list={terminals} failed={terminalsFailed} cards={cards} onOpen={openSession} buttonRef={sessionsBtn} />
-        <button ref={newBtn} className="btn" type="button" onClick={open} aria-haspopup="dialog">+ New bead</button>
+        <Button ref={newBtn} type="button" onClick={open} aria-haspopup="dialog">+ New bead</Button>
       </header>
       {error && (
-        <div className="banner" role="alert">
-          <span>{error}</span>
-          <button className="btn ghost" type="button" onClick={() => setError(undefined)}>Dismiss</button>
-        </div>
+        <Alert variant="destructive" className="rounded-none border-x-0 border-t-0 px-3.5">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+          <AlertAction className="top-1">
+            <Button variant="outline" size="sm" type="button" onClick={() => setError(undefined)}>Dismiss</Button>
+          </AlertAction>
+        </Alert>
       )}
       <main className={route.view === 'board' ? ['boardview', ...(route.beadId ? layoutClasses(drawers, true) : ['nosel'])].join(' ') : undefined}>
         {route.view === 'brief' && <BriefView onError={onError} />}
@@ -165,6 +172,6 @@ export function App() {
         {route.view === 'review' && <ReviewView onError={onError} />}
       </main>
       {creating && <NewBead onClose={close} onCreated={created} />}
-    </>
+    </TooltipProvider>
   );
 }

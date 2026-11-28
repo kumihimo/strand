@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import type { ArtefactFile, ArtefactList } from '../../../src/cockpit/model.ts';
 import { artefactUrl, openTarget } from '../api.ts';
+import { cn } from 'cn';
 import { defaultPreview, formatSize, openResultText, previewKind } from '../lib/detail.ts';
+import { Button } from './ui/button.tsx';
+import { Card } from './ui/card.tsx';
 
 type P = { beadId: string; artefacts: ArtefactList; onError: (e: unknown) => void };
 
 function Thumb({ beadId, f }: { beadId: string; f: ArtefactFile }) {
   return (
     <div className="thumb">
-      <span className="kind">{f.kind}</span>
+      <span className="absolute top-1.5 left-1.5 rounded bg-background/80 px-1.5 font-mono text-[10px] text-muted-foreground">{f.kind}</span>
       {previewKind(f) === 'image' ? (
         <img src={artefactUrl(beadId, f.relPath)} alt="" loading="lazy" />
       ) : (
-        <span className="mu mono">{f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : f.kind}</span>
+        <span className="font-mono text-muted-foreground">{f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : f.kind}</span>
       )}
     </div>
   );
@@ -30,66 +33,66 @@ export function Artefacts({ beadId, artefacts, onError }: P) {
   };
 
   const tile = (f: ArtefactFile) => (
-    <div key={f.relPath} className={`tile${cur?.relPath === f.relPath ? ' on' : ''}`}>
-      <button type="button" className="tilepick" disabled={!previewKind(f)} onClick={() => setPicked(f.relPath)} title={previewKind(f) ? `Preview ${f.name}` : undefined}>
+    <Card key={f.relPath} size="sm" className={cn('gap-0 py-0', cur?.relPath === f.relPath && 'ring-2 ring-primary')}>
+      <button type="button" className="block w-full cursor-pointer text-left disabled:cursor-default" disabled={!previewKind(f)} onClick={() => setPicked(f.relPath)} title={previewKind(f) ? `Preview ${f.name}` : undefined}>
         <Thumb beadId={beadId} f={f} />
-        <div className="nm" title={f.name}>{f.name}</div>
-        <div className="sz">{formatSize(f.size)}</div>
+        <div className="truncate px-2 pt-1.5 pb-0.5 font-mono text-xs" title={f.name}>{f.name}</div>
+        <div className="px-2 pb-1.5 text-[11px] text-muted-foreground">{formatSize(f.size)}</div>
       </button>
-      <div className="tileacts">
-        <button type="button" className="sbtn" onClick={() => open(f)}>Open</button>
+      <div className="flex gap-1 px-2 pb-2">
+        <Button type="button" variant="outline" size="xs" onClick={() => open(f)}>Open</Button>
       </div>
-    </div>
+    </Card>
   );
 
   const empty = all.length === 0 && artefacts.transcripts.length === 0;
   const kind = cur && previewKind(cur);
   return (
     <>
-      <div className="art-tools">
-        <span className="path mono">artefacts/{beadId}/</span>
-        {result && <span className="mu" role="status">{result}</span>}
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-muted-foreground">artefacts/{beadId}/</span>
+        {result && <span className="text-muted-foreground" role="status">{result}</span>}
       </div>
       {empty && (
-        <p className="none">
-          No artefacts yet. Claude saves mockups, screenshots and recordings here as it works; iterations go to <span className="mono">scratch/</span>.
+        <p className="text-xs text-muted-foreground">
+          No artefacts yet. Claude saves mockups, screenshots and recordings here as it works; iterations go to <span className="font-mono">scratch/</span>.
         </p>
       )}
       {cur && kind && (
-        <div className="preview">
-          <div className="ph">
-            <b className="mono">{cur.relPath}</b>
-            <span className="mu">{formatSize(cur.size)}</span>
+        <Card size="sm" className="mb-3 gap-0 py-0">
+          <div className="flex items-center gap-2 border-b px-2.5 py-1.5 text-xs">
+            <b className="font-mono">{cur.relPath}</b>
+            <span className="text-muted-foreground">{formatSize(cur.size)}</span>
             <span className="spacer" />
-            <button type="button" className="sbtn" onClick={() => open(cur)}>Open</button>
+            <Button type="button" variant="outline" size="xs" onClick={() => open(cur)}>Open</Button>
           </div>
-          <div className="pb">
+          <div className="preview-body">
             {kind === 'image' ? (
               <img src={artefactUrl(beadId, cur.relPath)} alt={cur.name} />
             ) : (
               <iframe sandbox="" src={artefactUrl(beadId, cur.relPath)} title={`Preview of ${cur.name}`} />
             )}
           </div>
-        </div>
+        </Card>
       )}
       {!empty && (
         <>
-          <div className="section">
-            <h4>Kept ({artefacts.kept.length})</h4>
-            {artefacts.kept.length ? <div className="grid">{artefacts.kept.map(tile)}</div> : <span className="none">None.</span>}
+          <div className="mb-2">
+            <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Kept ({artefacts.kept.length})</h4>
+            {artefacts.kept.length ? <div className="tiles">{artefacts.kept.map(tile)}</div> : <span className="text-xs text-muted-foreground">None.</span>}
           </div>
-          <div className="section">
-            <h4>Scratch · iterations ({artefacts.scratch.length})</h4>
-            {artefacts.scratch.length ? <div className="grid">{artefacts.scratch.map(tile)}</div> : <span className="none">Empty.</span>}
+          <div className="mb-2">
+            <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Scratch · iterations ({artefacts.scratch.length})</h4>
+            {artefacts.scratch.length ? <div className="tiles">{artefacts.scratch.map(tile)}</div> : <span className="text-xs text-muted-foreground">Empty.</span>}
           </div>
-          <div className="section">
-            <h4>Sessions · archived transcripts ({artefacts.transcripts.length})</h4>
-            {artefacts.transcripts.length === 0 && <span className="none">None archived yet.</span>}
+          <div className="mb-2">
+            <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Sessions · archived transcripts ({artefacts.transcripts.length})</h4>
+            {artefacts.transcripts.length === 0 && <span className="text-xs text-muted-foreground">None archived yet.</span>}
             {artefacts.transcripts.map((f) => (
-              <div key={f.relPath} className="srow">
-                <span className="mono">{f.relPath}</span>
-                <span className="mu">{formatSize(f.size)}</span>
-                <button type="button" className="sbtn" onClick={() => open(f)}>Open</button>
+              <div key={f.relPath} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 border-b py-1.5 text-[12.5px]">
+                <span className="truncate font-mono">{f.relPath}</span>
+                <span className="text-muted-foreground">{formatSize(f.size)}</span>
+                <Button type="button" variant="outline" size="xs" onClick={() => open(f)}>Open</Button>
               </div>
             ))}
           </div>

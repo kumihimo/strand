@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import type { TerminalInfo } from '../../../src/cockpit/pty.ts';
 import { move } from '../../../src/core/queue.ts';
 import { ApiError, addToQueue, getBoard, getQueue, releaseBead, removeFromQueue, setQueueOrder, startSession, type TerminalList } from '../api.ts';
+import { cn } from 'cn';
 import { Card } from '../components/Card.tsx';
+import { Dot } from '../components/SessionLight.tsx';
+import { Button } from '../components/ui/button.tsx';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/tooltip.tsx';
 import { COLUMNS } from '../lib/detail.ts';
 import { SESSION_LEGEND, wipState, type ColumnKey } from '../lib/format.ts';
 import { moveBy } from '../lib/queue.ts';
@@ -253,10 +257,10 @@ export function Board({ selected, onError, terminals, onTerminalsChanged, onTerm
   };
 
   const legend = (
-    <span className="legend" aria-label="Card light legend">
+    <span className="inline-flex items-center gap-2.5 whitespace-nowrap text-[11px] text-muted-foreground" aria-label="Card light legend">
       {SESSION_LEGEND.map((l) => (
-        <span key={l.state}>
-          <span className={`light ${l.state}`} aria-hidden="true" />
+        <span key={l.state} className="inline-flex items-center gap-1">
+          <Dot state={l.state} />
           {l.text}
         </span>
       ))}
@@ -281,30 +285,39 @@ export function Board({ selected, onError, terminals, onTerminalsChanged, onTerm
             return (
               <div
                 key={col.key}
-                className={`col${full ? ' atlimit' : ''}${target}`}
+                className={`col${target}`}
                 onDragEnter={dragOver(col.key)}
                 onDragOver={dragOver(col.key)}
                 onDragLeave={dragLeave(col.key)}
                 onDrop={drop(col.key)}
               >
-                <h3>
+                <h3 className="mb-0.5 flex flex-wrap justify-between gap-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   {col.label}
-                  <span className="hc">
+                  <span className="ml-auto inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap">
                     {hidden && <span title={`${items.length} shown, ${total - items.length} hidden by the filters`}>{items.length} of {total}</span>}
                     {n !== undefined && limit !== undefined ? (
-                      <span className={`wip${full ? ' full' : ''}`} title={`WIP ${n} of ${limit}${full ? ', at the limit' : ''}`}>
-                        {n}/{limit}
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span
+                            tabIndex={0}
+                            aria-label={`WIP ${n} of ${limit}${full ? ', at the limit' : ''}`}
+                            className={cn('rounded-full border px-1.5 font-mono text-[10.5px]', full && 'border-amber-400 bg-amber-400 text-amber-950')}
+                          >
+                            {n}/{limit}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>{`WIP ${n} of ${limit}${full ? ', at the limit' : ''}`}</TooltipContent>
+                      </Tooltip>
                     ) : (
                       !hidden && <span>{total}</span>
                     )}
                   </span>
                 </h3>
-                <div className={`sub${col.gate ? ' gate' : ''}`}>
+                <div className={cn('mb-2 min-h-[15px] text-[10.5px]', col.gate ? 'text-amber-700' : 'text-muted-foreground')}>
                   {col.key === 'queued' && queueState && !queueState.available ? queueState.reason ?? 'the queue is not available' : col.sub}
                 </div>
-                <div className="dropmsg wa" role="status">{reason}</div>
-                {alert && <div className="dropmsg ko" role="alert">{alert}</div>}
+                <div className="dropmsg mb-2 text-[11px] text-amber-700" role="status">{reason}</div>
+                {alert && <div className="dropmsg mb-2 text-[11px] text-destructive" role="alert">{alert}</div>}
                 {items.map((c) => {
                   const card = (
                     <Card
@@ -319,18 +332,18 @@ export function Board({ selected, onError, terminals, onTerminalsChanged, onTerm
                   if (col.key !== 'queued') return card;
                   const at = queue.indexOf(c.id);
                   return (
-                    <div key={c.id} className="qitem">
+                    <div key={c.id}>
                       {card}
-                      <div className="qbar" aria-label={`Queue controls for ${c.id}`}>
-                        <span className="n" title="Place in the queue">#{at + 1}</span>
-                        <button type="button" aria-label={`Move ${c.id} up`} disabled={busy || at <= 0} onClick={() => editQueue(() => setQueueOrder(moveBy(queue, c.id, -1)))}>↑</button>
-                        <button type="button" aria-label={`Move ${c.id} down`} disabled={busy || at >= queue.length - 1} onClick={() => editQueue(() => setQueueOrder(moveBy(queue, c.id, 1)))}>↓</button>
-                        <button type="button" aria-label={`Remove ${c.id} from the queue`} disabled={busy} onClick={() => editQueue(() => removeFromQueue(c.id))}>Remove</button>
+                      <div className="-mt-1 mb-2 flex items-center gap-1 text-[11px] text-muted-foreground" aria-label={`Queue controls for ${c.id}`}>
+                        <span className="mr-auto font-mono" title="Place in the queue">#{at + 1}</span>
+                        <Button type="button" variant="outline" size="icon-xs" aria-label={`Move ${c.id} up`} disabled={busy || at <= 0} onClick={() => editQueue(() => setQueueOrder(moveBy(queue, c.id, -1)))}>↑</Button>
+                        <Button type="button" variant="outline" size="icon-xs" aria-label={`Move ${c.id} down`} disabled={busy || at >= queue.length - 1} onClick={() => editQueue(() => setQueueOrder(moveBy(queue, c.id, 1)))}>↓</Button>
+                        <Button type="button" variant="outline" size="xs" className="h-6" aria-label={`Remove ${c.id} from the queue`} disabled={busy} onClick={() => editQueue(() => removeFromQueue(c.id))}>Remove</Button>
                       </div>
                     </div>
                   );
                 })}
-                {data && items.length === 0 && <div className="none">{total > 0 ? 'No matches' : 'Empty'}</div>}
+                {data && items.length === 0 && <div className="text-xs text-muted-foreground">{total > 0 ? 'No matches' : 'Empty'}</div>}
               </div>
             );
           })}
@@ -340,7 +353,7 @@ export function Board({ selected, onError, terminals, onTerminalsChanged, onTerm
         <BeadDetail id={selected} cards={cards} terminals={terminals} onTerminalsChanged={onTerminalsChanged} onTerminalStarted={onTerminalStarted} drawers={drawers} onToggleDrawer={onToggleDrawer} onExpandForSession={onExpandForSession} onEditDirty={onEditDirty} onChanged={notifyChanged} onError={onError} />
       ) : (
         <section className="detail empty">
-          <p className="none">{data ? `${data.cards.length} beads — select a card to see its spec, relations and artefacts.` : 'Loading…'}</p>
+          <p className="text-xs text-muted-foreground">{data ? `${data.cards.length} beads — select a card to see its spec, relations and artefacts.` : 'Loading…'}</p>
         </section>
       )}
     </>
