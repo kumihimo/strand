@@ -1,5 +1,6 @@
 import type { BeadDetail } from '../../../src/cockpit/model.ts';
 import type { TerminalInfo } from '../../../src/cockpit/pty.ts';
+import { externalUrl } from '../../../src/core/links.ts';
 import { SESSION_ID, TERMINAL_COLS, TERMINAL_ROWS } from '../../../src/core/naming.ts';
 const RESUME_MAX = 5;
 const UNAVAILABLE = 'terminals are not available';
@@ -195,3 +196,14 @@ export function terminalTheme(token: Token): { background: string; foreground: s
 }
 
 export const terminalFont = (token: Token): string => token('--term-mono') || 'Consolas, monospace';
+
+/**
+ * Open a link clicked in the terminal: an http(s) URL only, in a new window with no opener (a browser tab opens it
+ * in a new tab; the desktop app hands it to the default browser). Anything else is dropped. True when opened.
+ */
+export function openTerminalLink(uri: string, open: (url: string, target: string, features: string) => unknown): boolean {
+  const url = externalUrl(uri);
+  if (url === undefined) return false;
+  open(url, '_blank', 'noopener,noreferrer');
+  return true;
+}

@@ -11,6 +11,7 @@ import {
   isLeaveChord,
   liveBeadIds,
   liveElsewhere,
+  openTerminalLink,
   parseServerText,
   pushInput,
   queuedBytes,
@@ -298,4 +299,18 @@ test('liveElsewhere: a live card with no cockpit terminal for the bead', () => {
 test('terminalFont: the terminal mono token, with a fallback', () => {
   assert.equal(terminalFont((n) => (n === '--term-mono' ? 'Consolas, monospace' : '')), 'Consolas, monospace');
   assert.match(terminalFont(() => ''), /monospace$/);
+});
+
+test('openTerminalLink opens only http(s) links, in a new window with no opener', () => {
+  const calls: unknown[][] = [];
+  const open = (...a: unknown[]) => {
+    calls.push(a);
+    return null;
+  };
+  assert.equal(openTerminalLink('https://github.com/o/r/pull/1', open), true);
+  assert.deepEqual(calls, [['https://github.com/o/r/pull/1', '_blank', 'noopener,noreferrer']]);
+  for (const u of ['file:///etc/passwd', 'javascript:alert(1)', 'data:text/html,x', 'vscode://x', 'https://u:p@h/', 'nope']) {
+    assert.equal(openTerminalLink(u, open), false, u);
+  }
+  assert.equal(calls.length, 1);
 });
