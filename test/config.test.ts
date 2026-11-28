@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync
 import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
 import { homedir } from 'node:os';
-import { applyLegacyEnv, configPath, homeDir, legacyConfigPath, loadConfig, resetLegacyEnvWarning, saveConfig } from '../src/core/config.ts';
+import { addToolDirs, applyLegacyEnv, configPath, homeDir, legacyConfigPath, loadConfig, resetLegacyEnvWarning, saveConfig, toolsDir } from '../src/core/config.ts';
 import { getGiteaToken } from '../src/core/secrets.ts';
 import { instanceFile } from '../src/cockpit/instance.ts';
 
@@ -383,4 +383,42 @@ test('legacyConfigPath is the old sdlc folder on each platform, and none under a
   assert.equal(legacyConfigPath('darwin', {}, '/Users/k'), '/Users/k/Library/Application Support/sdlc/config.json');
   assert.equal(legacyConfigPath('linux', {}, '/home/k'), '/home/k/.config/sdlc/config.json');
   assert.equal(legacyConfigPath('linux', { STRAND_CONFIG_DIR: '/demo' }, '/home/k'), undefined);
+});
+
+test('AT-11 butPath and ghPath come from the file; STRAND_BUT_PATH and STRAND_GH_PATH override', () => {
+  const home = mkdtempSync(join(tmpdir(), 'strand-cfg-'));
+  try {
+    const env = { XDG_CONFIG_HOME: join(home, 'xdg') };
+    mkdirSync(join(home, 'xdg', 'strand'), { recursive: true });
+    writeFileSync(configPath('linux', env, home), JSON.stringify({ butPath: '/f/but', ghPath: '/f/gh' }));
+    const fromFile = loadConfig({ platform: 'linux', env, home });
+    assert.equal(fromFile.butPath, '/f/but');
+    assert.equal(fromFile.ghPath, '/f/gh');
+    const overridden = loadConfig({ platform: 'linux', env: { ...env, STRAND_BUT_PATH: '/e/but', STRAND_GH_PATH: '/e/gh' }, home });
+    assert.equal(overridden.butPath, '/e/but');
+    assert.equal(overridden.ghPath, '/e/gh');
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('AT-11 toolsDir is the tools folder beside the config file', () => {
+  const env = { STRAND_CONFIG_DIR: '/cfg' };
+  assert.equal(toolsDir('linux', env, '/home/u'), '/cfg/tools');
+});
+
+test('AT-11 addToolDirs puts the configured tools\' folders first on PATH, once', () => {
+  const cfg = { claudePath: '/a/bin/claude', butPath: '/b/bin/but', ghPath: '/cfg/tools/gh/bin/gh' };
+  const env: NodeJS.ProcessEnv = { PATH: '/usr/bin:/b/bin' };
+  addToolDirs(env, cfg, 'linux');
+  assert.equal(env.PATH, '/a/bin:/cfg/tools/gh/bin:/usr/bin:/b/bin');
+  addToolDirs(env, cfg, 'linux');
+  assert.equal(env.PATH, '/a/bin:/cfg/tools/gh/bin:/usr/bin:/b/bin', 'a second call adds nothing');
+  const win: NodeJS.ProcessEnv = { Path: 'C:\\Windows' };
+  addToolDirs(win, { ghPath: 'C:\\cfg\\tools\\gh\\bin\\gh.exe' }, 'win32');
+  assert.equal(win.Path, 'C:\\cfg\\tools\\gh\\bin;C:\\Windows');
+  assert.equal(win.PATH, undefined, 'the existing Path key is kept on Windows');
+  const none: NodeJS.ProcessEnv = { PATH: '/usr/bin' };
+  addToolDirs(none, { butPath: 'relative/but' }, 'linux');
+  assert.equal(none.PATH, '/usr/bin', 'a relative path is ignored');
 });

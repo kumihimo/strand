@@ -1,4 +1,4 @@
-import { loadConfig, type Config } from '../core/config.ts';
+import { addToolDirs, loadConfig, type Config } from '../core/config.ts';
 import { Beads } from '../core/bd.ts';
 import type { Forge } from '../core/forge.ts';
 import { createGitea } from '../core/gitea.ts';
@@ -26,6 +26,8 @@ export function buildCtx(
   io: { out?: (line: string) => void; err?: (line: string) => void } = {},
 ): Ctx {
   const config = loadConfig({ env });
+  // The tools first-run setup installed off PATH (ADR 0029): every run('but'), run('gh') and child finds them.
+  addToolDirs(env, config);
   const ctx: Ctx = {
     config,
     beads: new Beads(config.trackerDir),

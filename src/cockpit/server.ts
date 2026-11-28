@@ -11,6 +11,7 @@ import { registerActionRoutes, registerReadRoutes } from './routes.ts';
 import { registerTerminalRoutes } from './terminal-routes.ts';
 import { registerQueueRoutes } from './queue-routes.ts';
 import { registerSettingsRoutes } from './settings-routes.ts';
+import { registerSetupRoutes, type SetupDeps } from './setup-routes.ts';
 import type { WorkQueue } from './queue-runner.ts';
 import { MAX_INPUT_BYTES, type Terminals } from './pty.ts';
 import type { TargetOpener } from './open.ts';
@@ -67,6 +68,8 @@ export type ServerOptions = {
   repos?: RepoCache;
   /** Stops the cockpit. Registers POST /api/quit, which calls it once its answer is sent. */
   onQuit?: () => void;
+  /** How first-run setup probes and installs; defaults to the real tools (ADR 0029). */
+  setup?: SetupDeps;
 };
 
 export async function createServer(o: ServerOptions): Promise<FastifyInstance> {
@@ -160,6 +163,7 @@ export async function createServer(o: ServerOptions): Promise<FastifyInstance> {
   registerTerminalRoutes(app, o.ctx, o.terminals, o.terminalsUnavailable);
   registerQueueRoutes(app, o.queue);
   registerSettingsRoutes(app, o.ctx);
+  registerSetupRoutes(app, o.ctx, o.setup);
   await o.routes?.(app);
   app.get('/api/health', async () => ({ ok: true, version: version() }));
   // A second `strand cockpit` checks that the port in the key file is this process.

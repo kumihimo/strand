@@ -39,7 +39,7 @@ test('AT-1 GET /api/settings lists every value and whether a Gitea token is pres
   assert.equal(r.statusCode, 200);
   const body = r.json();
   assert.equal(body.path, path);
-  assert.equal(body.fields.length, 14);
+  assert.equal(body.fields.length, 16);
   assert.equal(body.giteaToken, false);
   // The workspace is set by STRAND_WORKSPACE in this sandbox.
   assert.equal(body.fields.find((f: { key: string }) => f.key === 'workspaceRoot').envVar, 'STRAND_WORKSPACE');

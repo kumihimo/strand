@@ -87,6 +87,8 @@ const SPECS: readonly Spec[] = [
     effective: (c) => c.branchPrefix,
   },
   { key: 'claudePath', label: 'Claude Code program', kind: 'path', env: 'CLAUDE_PATH', restart: false, check: existingFile, effective: (c) => c.claudePath },
+  { key: 'butPath', label: 'GitButler program', kind: 'path', env: 'BUT_PATH', restart: true, check: existingFile, effective: (c) => c.butPath },
+  { key: 'ghPath', label: 'GitHub CLI program', kind: 'path', env: 'GH_PATH', restart: true, check: existingFile, effective: (c) => c.ghPath },
   {
     key: 'claudeModel', label: 'Claude model', kind: 'text', env: 'CLAUDE_MODEL', restart: false,
     check: (v) => (isClaudeModel(v) ? undefined : 'must be a model alias or id, or default'),
@@ -240,7 +242,7 @@ export function applyLiveSettings(cfg: Config, next: Config): void {
   cfg.artefactsVcs = next.artefactsVcs;
   cfg.claudeModel = next.claudeModel;
   cfg.claudeEffort = next.claudeEffort;
-  for (const k of ['branchPrefix', 'claudePath'] as const) {
+  for (const k of ['branchPrefix', 'claudePath', 'butPath', 'ghPath'] as const) {
     if (next[k] === undefined) delete cfg[k];
     else cfg[k] = next[k];
   }

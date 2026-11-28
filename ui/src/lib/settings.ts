@@ -41,6 +41,8 @@ export function hintsOf(f: SettingField): string[] {
   if (f.envVar) out.push(`Set by ${f.envVar}; unset it to change it here.`);
   if (f.restart) out.push('Applies after the cockpit restarts.');
   if (f.key === 'claudePath') out.push('The full path to the claude program. Empty finds claude on PATH.');
+  if (f.key === 'butPath') out.push('The full path to the but program. Empty finds but on PATH. First-run setup fills it in.');
+  if (f.key === 'ghPath') out.push('The full path to the gh program. Empty finds gh on PATH. First-run setup fills it in.');
   if (f.key === 'artefactsVcs') out.push('Changing this does not move or convert the artefacts already in the tracker.');
   if (f.key === 'trackerDir' || f.key === 'docsRepo') out.push('Empty uses a folder under the workspace.');
   return out;
