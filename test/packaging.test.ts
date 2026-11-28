@@ -29,11 +29,34 @@ test('Linux builds a .deb and an AppImage for x64, with a maintainer for the .de
   assert.equal(build.appImage.artifactName, '${productName}-${version}.${ext}');
 });
 
-test('the packaging config publishes nothing', () => {
-  assert.ok('publish' in build, 'build.publish is set');
-  assert.equal(build.publish, null);
+test('the packaging config names the GitHub release feed for the updater, but no build publishes', () => {
+  assert.deepEqual(build.publish, { provider: 'github', owner: 'kumihimo', repo: 'strand' });
   for (const name of ['dist:win:unpacked', 'dist:win:installer', 'dist:linux']) {
     assert.match(pkg.scripts[name], /--publish never/, `${name} passes --publish never`);
+  }
+});
+
+test('the release key is packaged into the app, for the updater to verify SHA256SUMS.asc', () => {
+  assert.ok(build.files.includes('RELEASE-KEY.asc'));
+});
+
+const workflow = readFileSync(join(root, '.github', 'workflows', 'release.yml'), 'utf8');
+const job = (name: string) => {
+  const start = workflow.indexOf(`\n  ${name}:\n`);
+  assert.ok(start >= 0, `job ${name}`);
+  const next = workflow.slice(start + 1).search(/\n  [a-z]+:\n/);
+  return next < 0 ? workflow.slice(start) : workflow.slice(start, start + 1 + next);
+};
+
+test('AT-1 the release workflow carries the update feed files from the builds to the draft release', () => {
+  const linux = job('linux');
+  assert.match(linux, /release\/latest-linux\.yml/);
+  const windows = job('windows');
+  assert.match(windows, /release\/latest\.yml/);
+  assert.match(windows, /release\/Strand-Setup-\$\{\{ env\.VERSION \}\}\.exe\.blockmap/);
+  for (const name of ['checksums', 'publish']) {
+    const j = job(name);
+    for (const f of [/latest\.yml/, /latest-linux\.yml/, /\.exe\.blockmap/]) assert.match(j, f, `${name} carries ${f}`);
   }
 });
 

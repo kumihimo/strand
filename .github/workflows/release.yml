@@ -1,7 +1,9 @@
 name: Release
 
 # Builds the Windows installer, the .deb and the AppImage, then SHA256SUMS and its GPG signature, as one
-# workflow artifact, and attaches them to a draft GitHub Release on the tag, published by hand. The Windows
+# workflow artifact, and attaches them to a draft GitHub Release on the tag, published by hand. The updater's
+# feed files (latest.yml, latest-linux.yml and the installer's blockmap) go with them: installed copies see a
+# release only once it is published (ADR 0025). The Windows
 # installer is not Authenticode-signed yet; SHA256SUMS, signed with the release key, covers it. The signing and
 # publishing jobs use the `release` environment, which only v* tags may use, so they never run for a pull request
 # or a fork. Actions are pinned to full commit SHAs.
@@ -55,6 +57,7 @@ jobs:
           path: |
             release/strand_${{ needs.guard.outputs.version }}_amd64.deb
             release/Strand-${{ needs.guard.outputs.version }}.AppImage
+            release/latest-linux.yml
 
   windows:
     needs: guard
@@ -95,7 +98,10 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-installer
-          path: release/Strand-Setup-${{ env.VERSION }}.exe
+          path: |
+            release/Strand-Setup-${{ env.VERSION }}.exe
+            release/Strand-Setup-${{ env.VERSION }}.exe.blockmap
+            release/latest.yml
           if-no-files-found: error
 
   checksums:
@@ -145,6 +151,9 @@ jobs:
             out/Strand-${{ env.VERSION }}.AppImage
             out/SHA256SUMS
             out/SHA256SUMS.asc
+            out/latest.yml
+            out/latest-linux.yml
+            out/Strand-Setup-${{ env.VERSION }}.exe.blockmap
 
   publish:
     # Attaches the checked files to a draft GitHub Release on the tag; the engineer publishes it after the hand
@@ -169,7 +178,7 @@ jobs:
           set -euo pipefail
           tag="v$VERSION"
           files=(out/Strand-Setup-"$VERSION".exe out/strand_"$VERSION"_amd64.deb out/Strand-"$VERSION".AppImage
-            out/SHA256SUMS out/SHA256SUMS.asc)
+            out/SHA256SUMS out/SHA256SUMS.asc out/latest.yml out/latest-linux.yml out/Strand-Setup-"$VERSION".exe.blockmap)
           if draft=$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null); then
             [ "$draft" = true ] || { echo "::error::release $tag is already published; not replacing its assets"; exit 1; }
             gh release upload "$tag" "${files[@]}" --clobber

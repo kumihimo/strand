@@ -118,6 +118,19 @@ sha256sum -c --ignore-missing SHA256SUMS
 9B0B 04DF 2033 A161 CFAA  EA62 9CAF 8A0C E880 3C2C
 ```
 
+#### Updates
+
+From 0.1.1 the app updates itself. A packaged app checks the latest published release on github.com 30 s after it starts and every 6 hours after that, and downloads a newer version. Before it marks the download for install, it checks `SHA256SUMS.asc` against the release key built into the app and the download against `SHA256SUMS`. A download that fails either check is deleted. The update installs when you quit Strand, or when you choose **Update > Restart to update**, which asks first if a Claude Code session is running. Strand never restarts by itself. On a `.deb` install the update asks for your password (polkit) when you quit; cancel it and the old version stays, and the next quit asks again. 0.1.0 cannot update itself: install 0.1.1 by hand.
+
+The check sends your IP address and a user agent to github.com, and nothing else. Set `STRAND_NO_UPDATE=1` to turn it off.
+
+#### Making a release
+
+1. Set `version` in `package.json` on main, then tag that commit `v<version>` and push the tag.
+2. Wait for the Release workflow to finish. It attaches the installers, `SHA256SUMS`, `SHA256SUMS.asc` and the update feed (`latest.yml`, `latest-linux.yml`, the installer's `.blockmap`) to a draft release.
+3. Check the draft: download its assets, verify them as above, and install each one by hand. Installed copies do not see a draft.
+4. Publish the draft. From then on, installed copies pick it up at their next check.
+
 ### Moving an existing tracker onto this workflow
 
 Run once, in this order, against the real tracker: installer dry run with `--tracker-dir`, the installer, `strand migrate`, `strand migrate --apply`, a new Claude Code session, `strand audit`. Do not start a Claude Code session between the installer and `strand migrate --apply`.
