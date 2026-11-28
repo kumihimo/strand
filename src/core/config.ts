@@ -26,6 +26,10 @@ export type Config = {
   artefactsVcs: ArtefactsVcs;
   branchPrefix?: string;
   claudePath?: string;
+  /** The GitButler `but` program, when it is not on PATH (first-run setup saves it, ADR 0029). */
+  butPath?: string;
+  /** The GitHub CLI `gh` program, when it is not on PATH (first-run setup saves it, ADR 0029). */
+  ghPath?: string;
   /** Model for `strand work` sessions: an alias or id, or `default` for no flag. loadConfig always sets it. */
   claudeModel?: string;
   /** Effort for `strand work` sessions: low, medium, high, xhigh, max, or `default` for no flag. loadConfig always sets it. */
@@ -243,6 +247,8 @@ export function loadConfig(opts: ConfigOptions = {}): Config {
   const mode = modeRaw === undefined ? 'warn' : parseWipMode(modeRaw, env.STRAND_WIP_MODE ? 'STRAND_WIP_MODE' : file);
   const branchPrefix = env.STRAND_BRANCH_PREFIX || str(raw.branchPrefix);
   const claudePath = env.STRAND_CLAUDE_PATH || str(raw.claudePath);
+  const butPath = env.STRAND_BUT_PATH || str(raw.butPath);
+  const ghPath = env.STRAND_GH_PATH || str(raw.ghPath);
   const claudeModel = claudeSetting('claudeModel', 'STRAND_CLAUDE_MODEL', env, raw, file, isClaudeModel, 'is not a valid model name', DEFAULT_CLAUDE_MODEL);
   const claudeEffort = claudeSetting(
     'claudeEffort', 'STRAND_CLAUDE_EFFORT', env, raw, file, isClaudeEffort,
@@ -270,7 +276,39 @@ export function loadConfig(opts: ConfigOptions = {}): Config {
   if (giteaUrl) cfg.giteaUrl = giteaUrl;
   if (branchPrefix) cfg.branchPrefix = branchPrefix;
   if (claudePath) cfg.claudePath = claudePath;
+  if (butPath) cfg.butPath = butPath;
+  if (ghPath) cfg.ghPath = ghPath;
   return cfg;
+}
+
+/** Strand's own tools folder, `tools` beside the config file: first-run setup unpacks `gh` there (ADR 0029). */
+export function toolsDir(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, home: string): string {
+  const p = pathFor(platform);
+  return p.join(p.dirname(configPath(platform, env, home)), 'tools');
+}
+
+/**
+ * Put the folders of the configured tool programs (`claudePath`, `butPath`, `ghPath`) at the front of `env`'s
+ * PATH, so `run('but')`, `run('gh')` and every child (a cockpit terminal's Claude Code) find them. Changes
+ * `env` in place; a folder already on PATH, or a path that is not absolute, is left alone.
+ */
+export function addToolDirs(env: NodeJS.ProcessEnv, cfg: Pick<Config, 'claudePath' | 'butPath' | 'ghPath'>, platform: NodeJS.Platform = process.platform): void {
+  const win = platform === 'win32';
+  const p = pathFor(platform);
+  const key = win ? (Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'Path') : 'PATH';
+  const sep = win ? ';' : ':';
+  const current = (env[key] ?? '').split(sep).filter(Boolean);
+  const norm = (d: string) => (win ? d.replace(/[\\/]+$/, '').toLowerCase() : d.replace(/\/+$/, ''));
+  const have = new Set(current.map(norm));
+  const add: string[] = [];
+  for (const exe of [cfg.claudePath, cfg.butPath, cfg.ghPath]) {
+    if (!exe || !p.isAbsolute(exe)) continue;
+    const dir = p.dirname(exe);
+    if (have.has(norm(dir))) continue;
+    have.add(norm(dir));
+    add.push(dir);
+  }
+  if (add.length) env[key] = [...add, ...current].join(sep);
 }
 
 export function saveConfig(cfg: StoredConfig, opts: ConfigOptions = {}): void {

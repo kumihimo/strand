@@ -8,6 +8,10 @@ export interface RunOptions {
   env?: Record<string, string>;
   /** Kill the child and reject with `<cmd> did not answer within <s> s` when it runs longer than this. */
   timeoutMs?: number;
+  /** The child's whole environment, not merged over `process.env` (an installer must not inherit tokens). Wins over `env`. */
+  exactEnv?: Record<string, string>;
+  /** Called with each chunk of stdout and stderr as it arrives. */
+  onOutput?: (chunk: string) => void;
 }
 
 export interface RunResult {
@@ -77,7 +81,7 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
       shell: false,
       windowsHide: true,
       cwd: opts.cwd,
-      env: opts.env ? { ...process.env, ...opts.env } : process.env,
+      env: opts.exactEnv ?? (opts.env ? { ...process.env, ...opts.env } : process.env),
       stdio: ['pipe', 'pipe', 'pipe'],
       detached: process.platform !== 'win32',
     });
@@ -98,8 +102,14 @@ export function run(cmd: string, args: string[], opts: RunOptions = {}): Promise
             settle(() => reject(new Error(`${cmd} did not answer within ${opts.timeoutMs! / 1000} s`)));
           }, opts.timeoutMs)
         : undefined;
-    child.stdout!.setEncoding('utf8').on('data', (d: string) => (stdout += d));
-    child.stderr!.setEncoding('utf8').on('data', (d: string) => (stderr += d));
+    child.stdout!.setEncoding('utf8').on('data', (d: string) => {
+      stdout += d;
+      opts.onOutput?.(d);
+    });
+    child.stderr!.setEncoding('utf8').on('data', (d: string) => {
+      stderr += d;
+      opts.onOutput?.(d);
+    });
     child.on('error', (err: NodeJS.ErrnoException) => {
       settle(() => {
         if (err.code === 'ENOENT') {

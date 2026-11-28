@@ -30,7 +30,7 @@ test('AT-1 every config value is listed with its file value, effective value and
     v.fields.map((f) => f.key),
     [
       'workspaceRoot', 'trackerDir', 'docsRepo', 'giteaUrl', 'wip.build', 'wip.review', 'wip.mode', 'artefactsVcs',
-      'branchPrefix', 'claudePath', 'claudeModel', 'claudeEffort', 'cockpit.window', 'cockpit.maxSessions',
+      'branchPrefix', 'claudePath', 'butPath', 'ghPath', 'claudeModel', 'claudeEffort', 'cockpit.window', 'cockpit.maxSessions',
     ],
   );
   assert.deepEqual(SETTING_KEYS, v.fields.map((f) => f.key));
@@ -164,6 +164,19 @@ test('AT-5 claudePath is saved only as an existing absolute file; empty removes 
   assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { claudePath: exe });
   writeSettings({ claudePath: '' }, opts);
   assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), {});
+});
+
+test('AT-11 butPath and ghPath are saved under the same checks as claudePath', () => {
+  const { dir, path, opts } = sandbox({});
+  const exe = join(dir, 'tool-bin');
+  writeFileSync(exe, '');
+  for (const key of ['butPath', 'ghPath']) {
+    for (const p of ['but', join(dir, 'missing'), dir]) {
+      assert.throws(() => writeSettings({ [key]: p }, opts), (e: unknown) => e instanceof SettingsError && key in e.fields, `${key} ${p}`);
+    }
+  }
+  writeSettings({ butPath: exe, ghPath: exe }, opts);
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), { butPath: exe, ghPath: exe });
 });
 
 test('a patch that is not an object is refused', () => {

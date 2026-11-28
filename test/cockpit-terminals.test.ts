@@ -607,3 +607,26 @@ test('every terminal HTTP route needs the cookie and the cockpit Origin', async 
   assert.equal((await s.api('/api/beads/t-1/session', { method: 'POST', body: { mode: 'work' }, headers: { origin: 'http://evil.test' } })).status, 403);
   assert.deepEqual(s.started, []);
 });
+
+test('AT-11 a cockpit terminal finds the tools setup installed off PATH', async () => {
+  const { cockpitTerminals } = await import('../src/cli/commands/cockpit.ts');
+  const { writeFileSync } = await import('node:fs');
+  const ws = mkdtempSync(join(tmpdir(), 'strand-term-tools-'));
+  const cfg = join(ws, 'cfg');
+  mkdirSync(cfg);
+  mkdirSync(join(ws, 'tracker'));
+  const but = join(ws, 'gb', 'but');
+  writeFileSync(join(cfg, 'config.json'), JSON.stringify({ butPath: but, ghPath: join(cfg, 'tools', 'gh', 'bin', 'gh') }));
+  const env = { ...baseEnv(), STRAND_WORKSPACE: ws, STRAND_CONFIG_DIR: cfg, HOME: ws, USERPROFILE: ws, XDG_CONFIG_HOME: join(ws, 'xdg'), APPDATA: join(ws, 'xdg') };
+  const ctx = buildCtx(env, { out: () => {}, err: () => {} });
+  const envs: NodeJS.ProcessEnv[] = [];
+  const spawn: SpawnPty = (_file, _args, opts) => (envs.push(opts.env), new FakePty());
+  const { terminals } = cockpitTerminals(ctx, spawn);
+  terminals.start({ beadId: 'b-1', cwd: ctx.config.trackerDir, mode: 'work' });
+  const sep = process.platform === 'win32' ? ';' : ':';
+  const key = Object.keys(envs[0]!).find((k) => k.toUpperCase() === 'PATH')!;
+  const dirs = envs[0]![key]!.split(sep);
+  assert.equal(dirs[0], join(ws, 'gb'));
+  assert.equal(dirs[1], join(cfg, 'tools', 'gh', 'bin'));
+  terminals.killAll();
+});

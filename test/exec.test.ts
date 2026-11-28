@@ -111,3 +111,22 @@ test('a timed-out child and its own child are both gone', async () => {
     fs.rmSync(base, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
+
+test('run with exactEnv gives the child only that environment', async () => {
+  process.env.STRAND_EXEC_LEAK_PROBE = 'leaked';
+  try {
+    const r = await run(process.execPath, ['-e', "process.stdout.write(String(process.env.STRAND_EXEC_LEAK_PROBE)+'|'+process.env.STRAND_X)"], {
+      exactEnv: { STRAND_X: 'x' },
+    });
+    assert.equal(r.stdout, 'undefined|x');
+  } finally {
+    delete process.env.STRAND_EXEC_LEAK_PROBE;
+  }
+});
+
+test('run calls onOutput with stdout and stderr as they arrive', async () => {
+  const seen: string[] = [];
+  const r = await run(process.execPath, ['-e', "process.stdout.write('a');process.stderr.write('b')"], { onOutput: (c) => seen.push(c) });
+  assert.equal(r.code, 0);
+  assert.deepEqual(seen.join('').split('').sort(), ['a', 'b']);
+});
