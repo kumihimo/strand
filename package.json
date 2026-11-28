@@ -87,10 +87,13 @@
     "files": [
       "package.json",
       "electron/**/*.ts",
+      "electron/preload.cjs",
+      "electron/icon.png",
       "src/**/*.ts",
       "dist/ui/**/*",
       "RELEASE-KEY.asc"
     ],
+    "icon": "electron/icon.png",
     "win": {
       "target": [
         {

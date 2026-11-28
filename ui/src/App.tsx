@@ -23,6 +23,7 @@ import { ReviewView } from './views/Review.tsx';
 import { SettingsView } from './views/Settings.tsx';
 import { SetupView } from './views/Setup.tsx';
 import { landOnSetup, SKIP_KEY } from './lib/setup.ts';
+import { useMenu } from './useMenu.ts';
 
 const TABS = [
   ['brief', 'Brief'],
@@ -149,6 +150,15 @@ export function App() {
     [close],
   );
 
+  // The desktop app's menu bar and its page-handled keys (ADR 0030). Opening New bead twice is a no-op.
+  const [sessionsRequest, setSessionsRequest] = useState(0);
+  const openRef = useRef(open);
+  openRef.current = open;
+  useMenu({
+    newBead: () => !dialogOpen.current && openRef.current(),
+    sessions: () => setSessionsRequest((n) => n + 1),
+  });
+
   return (
     <TooltipProvider delayDuration={300}>
       <header className="appbar">
@@ -165,7 +175,7 @@ export function App() {
           ))}
         </nav>
         <span className="spacer" />
-        <SessionsMenu list={terminals} failed={terminalsFailed} cards={cards} onOpen={openSession} buttonRef={sessionsBtn} />
+        <SessionsMenu list={terminals} failed={terminalsFailed} cards={cards} onOpen={openSession} buttonRef={sessionsBtn} openRequest={sessionsRequest} />
         <Button ref={newBtn} type="button" onClick={open} aria-haspopup="dialog">+ New bead</Button>
       </header>
       {error && (
