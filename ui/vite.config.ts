@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
@@ -8,7 +9,7 @@ const cockpit = process.env.STRAND_COCKPIT_URL ?? process.env.SDLC_COCKPIT_URL ?
 
 export default defineConfig({
   root,
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   // `npm run dev:ui` against a running cockpit (strand cockpit, default port 4747). Open the cockpit's ?key= link
   // first, then the dev page on http://127.0.0.1:5173 (cookies ignore ports, so the session cookie is sent).
   // The cockpit checks Host and Origin, so the proxy presents itself as the cockpit's own origin.
