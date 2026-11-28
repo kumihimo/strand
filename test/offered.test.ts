@@ -183,10 +183,11 @@ test('AT-9 a gh archive with the right SHA-256 is unpacked into the tools folder
     writeFileSync(path.join(dest, 'gh_2.50.0_linux_amd64', 'bin', 'gh'), '');
     return { code: 0, stdout: '', stderr: '' };
   };
-  const gh = path.join(s.toolsDir, 'gh', 'bin', 'gh');
+  // The probe runs as linux and joins POSIX paths; the file on disk uses the host's separators.
+  const gh = path.posix.join(s.toolsDir, 'gh', 'bin', 'gh');
   const r = await installTool('gh', deps({ calls, fetch: fetchImpl, toolsDir: s.toolsDir, run, exists: (p) => p === gh }));
   assert.equal(calls[0]!.cmd, 'tar');
-  assert.equal(existsSync(gh), true);
+  assert.equal(existsSync(path.join(s.toolsDir, 'gh', 'bin', 'gh')), true);
   assert.equal(r.path, gh);
   assert.deepEqual(readdirSync(s.toolsDir), ['gh'], 'temp folders are cleaned up');
 });
