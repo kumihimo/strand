@@ -1,0 +1,2 @@
+# Signed release files: a signature covers exact bytes, so no line-ending conversion on checkout.
+test/fixtures/release-*/** -text
